@@ -1,94 +1,94 @@
 # ai-oral-exam-web
 
-Frontend của **AIVES – AI-powered Viva Exam System** (SWD392). Một web app React cho cả 3 vai trò: **Student**, **Lecturer**, **Administrator**, dùng chung phần đăng nhập, đăng ký và cài đặt tài khoản.
+Frontend for **AIVES – AI-powered Viva Exam System** (SWD392). One React web app for all three roles: **Student**, **Lecturer** and **Administrator**, with shared sign-in, registration and account settings.
 
-- **Stack:** React + Vite (responsive, dùng được trên tablet)
-- **Giao tiếp BE:** REST cho request thường; **WebSocket** cho buổi thi (server tự đẩy câu hỏi tiếp theo / câu hỏi xoáy)
-- **Micro:** trình duyệt chỉ cho dùng micro trên **HTTPS** (hoặc `localhost`), nên mọi môi trường deploy đều phải có HTTPS
+- **Stack:** React + Vite (responsive, works on tablets)
+- **Backend communication:** REST for normal requests; **WebSocket** for the interview (the server pushes the next question or a follow-up)
+- **Microphone:** browsers only allow microphone access on **HTTPS** pages (or `localhost`), so every deployed environment needs HTTPS
 
-Repo backend: `ai-oral-exam-api`. Tài liệu thiết kế: repo `docs`.
+Backend repo: `ai-oral-exam-api`. Design documents: `docs` repo.
 
-> Repo đang ở bước khung thư mục, chưa scaffold. Các thư mục còn trống có `.gitkeep`; xoá file này khi thư mục đã có code.
+> The repo currently holds only the folder skeleton and has not been scaffolded yet. Empty folders contain a `.gitkeep`; delete it once the folder has real code.
 
 ---
 
-## 1. Cài đặt cần có
+## 1. Prerequisites
 
-| Công cụ | Phiên bản | Kiểm tra |
+| Tool | Version | Check |
 |---|---|---|
-| Node.js | 20 LTS trở lên | `node --version` |
-| Backend `ai-oral-exam-api` | chạy ở `http://localhost:5080` | mở http://localhost:5080/health |
+| Node.js | 20 LTS or later | `node --version` |
+| Backend `ai-oral-exam-api` | running at `http://localhost:5080` | open http://localhost:5080/health |
 
-## 2. Chạy
+## 2. Running
 
 ```bash
 npm install
 npm run dev        # http://localhost:5173
 ```
 
-Tạo file `.env.local` (không commit):
+Create a `.env.local` file (do not commit it):
 
 ```
 VITE_API_BASE_URL=http://localhost:5080
 ```
 
-BE đã mở CORS cho `http://localhost:5173` và `http://localhost:3000`. Chạy port khác thì phải thêm vào `Cors:AllowedOrigins` bên API.
+The backend allows CORS from `http://localhost:5173` and `http://localhost:3000`. If you run on another port, add it to `Cors:AllowedOrigins` in the API.
 
-**Tài khoản test:** xem bảng "Dữ liệu mẫu" trong README của `ai-oral-exam-api` (mật khẩu chung `Password@123`). Demo luồng thi dùng `han.hg@aives.edu.vn`.
+**Test accounts:** see the "Sample data" table in the `ai-oral-exam-api` README (shared password `Password@123`). Use `han.hg@aives.edu.vn` to demo the interview flow.
 
-## 3. Cấu trúc project
+## 3. Project structure
 
 ```
 ai-oral-exam-web/
 ├── public/
 └── src/
     ├── app/
-    │   ├── layouts/        # layout chung + layout từng portal (FE-PLAT-01)
-    │   └── routes/         # router, chặn route theo role (FE-PLAT-03)
-    ├── api/                # HTTP client dùng chung, xử lý lỗi thống nhất (FE-PLAT-02); WebSocket client
-    ├── components/         # UI dùng chung
+    │   ├── layouts/        # shared layout + one layout per portal (FE-PLAT-01)
+    │   └── routes/         # router, role-based route guards (FE-PLAT-03)
+    ├── api/                # shared HTTP client, unified error handling (FE-PLAT-02); WebSocket client
+    ├── components/         # shared UI
     ├── hooks/
     ├── utils/
-    ├── mocks/              # dữ liệu mock khi API chưa có
+    ├── mocks/              # mock data while the API is not ready
     ├── assets/
     ├── styles/
     └── features/
-        ├── auth/           # F7 – đăng nhập, đăng ký, Google SSO, quên / đặt mật khẩu
+        ├── auth/           # F7 – sign-in, registration, Google SSO, forgot / set password
         ├── account/        # F7 – Account Settings
-        ├── interview/      # F3 – trang thi, state machine giao diện, timer (FE-INT-*)
-        ├── score-review/   # F3 – giảng viên xem transcript, chốt điểm
-        ├── reporting/      # F6 – báo cáo sinh viên, thống kê lớp, xuất bảng điểm (FE-PLAT-04)
-        ├── exam-config/    # F7 – phiên thi, câu hỏi, rubric, danh sách sinh viên, publish
-        └── admin/          # F7 – tài khoản, course, cấu hình STT/TTS/LLM, audit log
+        ├── interview/      # F3 – exam page, UI state machine, timer (FE-INT-*)
+        ├── score-review/   # F3 – lecturer reads the transcript and confirms the final score
+        ├── reporting/      # F6 – student report, class statistics, grade sheet export (FE-PLAT-04)
+        ├── exam-config/    # F7 – exam sessions, questions, rubrics, student list, publish
+        └── admin/          # F7 – accounts, courses, STT/TTS/LLM settings, audit log
 ```
 
-Code của một tính năng nằm trong `features/<tên>/`. Chỉ đưa lên `components/`, `hooks/`, `utils/` khi có từ 2 feature trở lên dùng chung.
+Code for a feature lives in `features/<name>/`. Move something up to `components/`, `hooks/` or `utils/` only when two or more features use it.
 
-## 4. Quy ước
+## 4. Conventions
 
-**Gọi tên đúng như use case / ERD / class diagram (FOUNDATION-01):**
+**Use the same names as the use cases / ERD / class diagram (FOUNDATION-01):**
 
-- *Exam Session* (phiên thi do giảng viên tạo) ≠ *Interview Attempt* (lượt thi của một sinh viên)
-- *câu hỏi chính* ≠ *câu hỏi xoáy* (follow-up)
-- *phân tích câu trả lời* ≠ *chấm điểm*
+- *Exam Session* (created by a lecturer) ≠ *Interview Attempt* (one student's attempt)
+- *main question* ≠ *follow-up question*
+- *answer analysis* ≠ *scoring*
 
-**Xử lý lỗi:** mọi lỗi từ API có cùng format
+**Error handling:** every API error has the same shape
 
 ```json
-{ "code": "exam_session_not_open", "message": "Phiên thi chưa được mở.", "traceId": "...", "details": null }
+{ "code": "exam_session_not_open", "message": "...", "traceId": "...", "details": null }
 ```
 
-Rẽ nhánh theo `code`, hiện `message` cho người dùng.
+Branch on `code`; show `message` to the user.
 
-**Trạng thái lượt thi:** `InProgress → PendingReview → Finalized`. Mỗi lần nộp câu trả lời, API trả `outcome`: `FollowUp` | `NextQuestion` | `Completed`.
+**Attempt status:** `InProgress → PendingReview → Finalized`. Each submitted answer returns an `outcome`: `FollowUp` | `NextQuestion` | `Completed`.
 
-**Timer:** đếm theo giây cho **từng lần trả lời** (kể cả câu hỏi xoáy). Hết giờ thì tự nộp, sang lần trả lời mới thì đếm lại.
+**Timer:** counts down in seconds for **each answer** (follow-up answers included). When time runs out the answer is submitted automatically; the next answer starts a fresh countdown.
 
-**Điểm:** AI chỉ *gợi ý* điểm. Sinh viên chỉ xem được báo cáo khi giảng viên đã chốt điểm; trước đó hiện "đang chờ duyệt".
+**Scores:** the AI only *suggests* scores. Students can see their report only after the lecturer confirms the final score; until then it shows "waiting for review".
 
-## 5. Lộ trình (theo tracker)
+## 5. Roadmap (from the tracker)
 
-- **M1:** đăng nhập → trang thi → tạo lượt thi → nhận câu hỏi → timer → gõ câu trả lời → hiện điểm mock
-- **M2:** micro, ghi âm, phát câu hỏi bằng TTS, WebSocket
-- **M3:** báo cáo sinh viên, giảng viên duyệt và chốt điểm, thống kê lớp, xuất bảng điểm
-- **M4:** đăng ký, Google SSO, đặt / đặt lại mật khẩu, cài đặt tài khoản, cấu hình phiên thi, màn hình admin
+- **M1:** sign in → exam page → create attempt → receive question → timer → type answer → show mock score
+- **M2:** microphone, audio recording, TTS playback of questions, WebSocket
+- **M3:** student report, lecturer review and final score, class statistics, grade sheet export
+- **M4:** registration, Google SSO, set / reset password, account settings, exam session setup, admin screens
