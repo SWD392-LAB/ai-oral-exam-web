@@ -1,0 +1,22 @@
+/* Keyframes of the motion grammar, shared by both themes (DESIGN-SYSTEM section 5). */
+@keyframes aives-rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@keyframes aives-pop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
+@keyframes aives-tick-a{from{opacity:.2;transform:translateY(-14px)}to{opacity:1;transform:none}}
+@keyframes aives-tick-b{from{opacity:.2;transform:translateY(-14px)}to{opacity:1;transform:none}}
+@keyframes aives-word{from{opacity:0;filter:blur(5px)}to{opacity:1;filter:blur(0)}}
+@keyframes aives-read{from{color:var(--lantern-gold)}to{color:var(--ivory)}}
+@keyframes aives-moon-fill{from{clip-path:circle(16% at 86% 50%)}to{clip-path:circle(72% at 50% 50%)}}
+@keyframes aives-rec{0%,100%{transform:scale(.72)}50%{transform:scale(1)}}
+@keyframes aives-breathe{0%,100%{opacity:.45}50%{opacity:1}}
+@keyframes aives-breathe-ai{0%,100%{opacity:.7;transform:scale(.92)}50%{opacity:1;transform:scale(1.06)}}
+@keyframes aives-voice{0%{opacity:.55;transform:scale(.78)}9%{opacity:.92;transform:scale(1.04)}17%{opacity:.72;transform:scale(.9)}29%{opacity:1;transform:scale(1.12)}38%{opacity:.6;transform:scale(.84)}52%{opacity:.95;transform:scale(1.07)}61%{opacity:.78;transform:scale(.95)}74%{opacity:1;transform:scale(1.15)}86%{opacity:.64;transform:scale(.86)}100%{opacity:.55;transform:scale(.78)}}
+@keyframes aives-flare{0%{opacity:.25}45%{opacity:1}100%{opacity:0}}
+@keyframes aives-turn-out{from{transform:translateZ(-640px) rotateY(0deg) translateZ(640px)}to{transform:translateZ(-640px) rotateY(-72deg) translateZ(640px)}}
+@keyframes aives-turn-in{from{transform:translateZ(-640px) rotateY(72deg) translateZ(640px)}to{transform:translateZ(-640px) rotateY(0deg) translateZ(640px)}}
+@keyframes aives-fade-out{from{opacity:1}to{opacity:0}}
+@keyframes aives-fade-in-late{0%,12%{opacity:0}72%,100%{opacity:1}}
+@keyframes aives-fade{from{opacity:0}to{opacity:1}}
+@keyframes aives-silhouette{0%{opacity:0;transform:translateX(260px) scale(1.22) skewX(-4deg);filter:blur(2.5px)}50%{opacity:.92}100%{opacity:0;transform:translateX(-980px) scale(1.22) skewX(-4deg);filter:blur(4.5px)}}
+@keyframes aives-settle{from{border-color:var(--gold-edge);transform:scale(.985)}to{transform:none}}
+@keyframes aives-turn-out-s{from{transform:translateZ(-320px) rotateY(0deg) translateZ(320px)}to{transform:translateZ(-320px) rotateY(-28deg) translateZ(320px)}}
+@keyframes aives-turn-in-s{from{transform:translateZ(-320px) rotateY(28deg) translateZ(320px)}to{transform:translateZ(-320px) rotateY(0deg) translateZ(320px)}}

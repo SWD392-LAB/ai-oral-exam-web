@@ -1,0 +1,168 @@
+/*
+  Base styles and the a-* helper classes, ported from the two wireframe helmets
+  (Night: InterviewRoom, Moonlight: LecturerSessions). Rules shared by both themes
+  are unscoped; the rest is scoped by html[data-theme]. Screen-only rules live next
+  to each page as <Screen>.css, scoped by .pg-<screen>.
+*/
+html[data-theme="night"] {background:var(--night-indigo);color-scheme:dark;scrollbar-color:rgba(246,241,231,0.25) transparent}
+html[data-theme="night"] body {margin:0;background-color:var(--night-indigo);background-image:radial-gradient(1100px 640px at 92% -14%,rgba(123,196,196,0.09),rgba(15,22,48,0) 62%),linear-gradient(180deg,var(--night-indigo) 0%,var(--night-indigo) 55%,var(--night-deep) 100%);background-attachment:fixed;color:var(--ivory);font-family:"Lexend","Segoe UI",system-ui,sans-serif;font-weight:300;font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+*,*::before,*::after{box-sizing:border-box}
+h1,h2,h3,h4,p,ul,ol,dl,dd,figure{margin:0}
+ul,ol{padding:0;list-style:none}
+table{border-collapse:collapse}
+input,select,textarea,button{font:inherit;color:inherit}
+[data-theme="night"] ::selection {background:rgba(245,183,0,0.32);color:var(--ivory)}
+[data-theme="night"] input::placeholder,
+[data-theme="night"] textarea::placeholder {color:var(--ivory-3);opacity:1}
+[data-theme="night"] input,
+[data-theme="night"] textarea {caret-color:var(--lantern-gold)}
+:focus{outline:none}
+[data-theme="night"] :focus-visible {outline:2px solid var(--lantern-gold);outline-offset:4px}
+[data-theme="night"] .a-btn {cursor:pointer;transition:background-color .2s ease-out,border-color .2s ease-out,color .2s ease-out,opacity .3s ease-out,transform .4s cubic-bezier(0.34,1.32,0.64,1)}
+.a-btn:active:not([aria-disabled="true"]){transform:scale(0.98)}
+.a-btn[aria-disabled="true"],.a-btn:disabled{opacity:.42;cursor:not-allowed;box-shadow:none !important}
+[data-theme="night"] .a-btn-primary:hover:not([aria-disabled="true"]) {background:var(--ivory-hover) !important}
+[data-theme="night"] .a-btn-secondary:hover:not([aria-disabled="true"]) {background:rgba(246,241,231,0.08) !important;border-color:rgba(246,241,231,0.72) !important}
+[data-theme="night"] .a-btn-quiet:hover:not([aria-disabled="true"]) {color:var(--ivory) !important;background:rgba(246,241,231,0.06) !important}
+[data-theme="night"] .a-btn-danger:hover:not([aria-disabled="true"]) {background:rgba(232,69,44,0.16) !important}
+[data-theme="night"] .a-link {text-decoration-line:underline;text-decoration-thickness:1px;text-underline-offset:3px;text-decoration-color:var(--night-edge);transition:text-decoration-color .18s ease-out,color .18s ease-out}
+[data-theme="night"] .a-link:hover {text-decoration-color:currentColor !important;text-decoration-thickness:2px;color:var(--ivory) !important}
+.a-nav{transition:color .18s ease-out,box-shadow .18s ease-out}
+[data-theme="night"] .a-nav:hover {color:var(--ivory) !important;box-shadow:inset 0 -2px 0 rgba(246,241,231,0.22)}
+[data-theme="night"] .a-nav[aria-current="page"]:hover {box-shadow:inset 0 -2px 0 var(--ivory)}
+.a-field{transition:border-color .18s ease-out}
+[data-theme="night"] .a-field:hover {border-color:var(--ivory-3) !important}
+[data-theme="night"] .a-field:focus,
+[data-theme="night"] .a-field:focus-visible {border-color:var(--ivory) !important;outline:2px solid var(--lantern-gold);outline-offset:2px}
+[data-theme="night"] .a-field[aria-invalid="true"] {border-color:var(--ember-text) !important}
+select.a-field{appearance:none;-webkit-appearance:none;cursor:pointer}
+[data-theme="night"] select.a-field option {background:var(--night-indigo);color:var(--ivory)}
+.a-row{transition:background-color .18s ease-out}
+[data-theme="night"] .a-row:hover {background:rgba(246,241,231,0.04)}
+.a-num{font-variant-numeric:tabular-nums}
+.a-rise{animation:aives-rise .4s cubic-bezier(0.34,1.32,0.64,1) both}
+.a-pop{animation:aives-pop .4s cubic-bezier(0.34,1.32,0.64,1) both}
+.a-just{animation:aives-rise .4s cubic-bezier(0.34,1.32,0.64,1) both}
+.a-tick-a{display:inline-block;animation:aives-tick-a .42s cubic-bezier(0.25,1,0.5,1) both}
+.a-tick-b{display:inline-block;animation:aives-tick-b .42s cubic-bezier(0.25,1,0.5,1) both}
+.a-word{animation:aives-word .32s cubic-bezier(0.16,1,0.3,1) both}
+[data-theme="night"] .a-read {animation:aives-read .7s ease-out both}
+.a-moon-fill{animation:aives-moon-fill .7s cubic-bezier(0.16,1,0.3,1) both}
+.a-playhead{transition:transform .125s linear}
+.a-rec{transform-box:fill-box;transform-origin:center;animation:aives-rec 1.1s ease-in-out infinite}
+[data-theme="night"] .a-light {position:absolute;border-radius:50%;pointer-events:none;mix-blend-mode:screen;transition:opacity .8s ease-out}
+[data-theme="night"] .a-light-ai {animation:aives-breathe-ai 1.6s ease-in-out infinite}
+[data-theme="night"] .a-light-voice {transform-origin:50% 60%;animation:aives-voice 1.35s linear infinite}
+[data-theme="night"] .a-candle {animation:aives-breathe 2.6s ease-in-out infinite}
+[data-theme="night"] .a-flare {animation:aives-flare .95s ease-out both}
+.a-turn-stage{perspective:1700px;perspective-origin:46% 42%;overflow:hidden}
+[data-theme="night"] .a-turn-out {backface-visibility:hidden;animation:aives-turn-out .95s cubic-bezier(0.25,1,0.5,1) both,aives-fade-out .76s linear both}
+[data-theme="night"] .a-turn-in {backface-visibility:hidden;animation:aives-turn-in .95s cubic-bezier(0.25,1,0.5,1) both,aives-fade-in-late .95s linear both}
+[data-theme="night"] .a-silhouette {color:#04060F;pointer-events:none;transform-origin:30% 40%;animation:aives-silhouette 1s cubic-bezier(0.3,0.7,0.4,1) both}
+.a-show-sm{display:none}
+html[data-theme="moonlight"] {background:var(--moonlight);color-scheme:light;scrollbar-color:#B4BBD0 transparent}
+html[data-theme="moonlight"] body {margin:0;background-color:var(--moonlight);background-image:radial-gradient(1200px 620px at 94% -18%,rgba(123,196,196,0.26),rgba(244,246,252,0) 66%),radial-gradient(900px 520px at 0% -26%,rgba(72,88,180,0.09),rgba(244,246,252,0) 64%);background-repeat:no-repeat;color:var(--night-indigo);font-family:"Lexend","Segoe UI",system-ui,sans-serif;font-weight:400;font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+[data-theme="moonlight"] ::selection {background:var(--jade-select);color:var(--night-indigo)}
+[data-theme="moonlight"] input::placeholder,
+[data-theme="moonlight"] textarea::placeholder {color:var(--ink-3);opacity:1}
+[data-theme="moonlight"] input,
+[data-theme="moonlight"] textarea {caret-color:var(--night-indigo)}
+[data-theme="moonlight"] :focus-visible {outline:2px solid var(--night-indigo);outline-offset:3px}
+[data-theme="moonlight"] .a-btn {cursor:pointer;transition:background-color .18s ease-out,border-color .18s ease-out,color .18s ease-out,box-shadow .18s ease-out,transform .4s cubic-bezier(0.34,1.32,0.64,1)}
+[data-theme="moonlight"] .a-btn-primary:hover:not([aria-disabled="true"]) {background:var(--ink-hover) !important}
+[data-theme="moonlight"] .a-btn-secondary:hover:not([aria-disabled="true"]) {background:var(--field-white) !important;border-color:var(--night-indigo) !important}
+[data-theme="moonlight"] .a-btn-quiet:hover:not([aria-disabled="true"]) {background:rgba(15,22,48,0.06) !important;color:var(--night-indigo) !important}
+[data-theme="moonlight"] .a-btn-danger:hover:not([aria-disabled="true"]) {background:rgba(232,69,44,0.09) !important;border-color:var(--red-ink-deep) !important;color:var(--red-ink-deep) !important}
+[data-theme="moonlight"] .a-night .a-btn-primary:hover:not([aria-disabled="true"]) {background:var(--ivory-hover) !important}
+[data-theme="moonlight"] .a-night .a-btn-secondary:hover:not([aria-disabled="true"]) {background:rgba(246,241,231,0.08) !important;border-color:rgba(246,241,231,0.72) !important}
+[data-theme="moonlight"] .a-night .a-btn-quiet:hover:not([aria-disabled="true"]) {background:rgba(246,241,231,0.08) !important;color:var(--ivory) !important}
+[data-theme="moonlight"] .a-night :focus-visible {outline-color:var(--lantern-gold)}
+[data-theme="moonlight"] .a-link {text-decoration-line:underline;text-decoration-thickness:1px;text-underline-offset:3px;text-decoration-color:var(--edge);transition:text-decoration-color .18s ease-out,color .18s ease-out}
+[data-theme="moonlight"] .a-link:hover {text-decoration-color:currentColor !important;text-decoration-thickness:2px}
+[data-theme="moonlight"] .a-night .a-link {text-decoration-color:var(--night-edge)}
+[data-theme="moonlight"] .a-nav:hover {color:var(--night-indigo) !important;box-shadow:inset 0 -2px 0 var(--line-strong)}
+[data-theme="moonlight"] .a-nav[aria-current="page"]:hover {box-shadow:inset 0 -2px 0 var(--night-indigo)}
+[data-theme="moonlight"] .a-field:hover {border-color:var(--ink-2) !important}
+[data-theme="moonlight"] .a-field:focus,
+[data-theme="moonlight"] .a-field:focus-visible {border-color:var(--night-indigo) !important;outline:2px solid var(--night-indigo);outline-offset:1px}
+[data-theme="moonlight"] .a-field[aria-invalid="true"] {border-color:var(--red-ink) !important}
+[data-theme="moonlight"] .a-field[aria-invalid="true"]:focus {outline-color:var(--red-ink)}
+[data-theme="moonlight"] .a-row:hover {background:rgba(15,22,48,0.035)}
+[data-theme="moonlight"] .a-sort {cursor:pointer;transition:color .18s ease-out}
+[data-theme="moonlight"] .a-sort:hover {color:var(--night-indigo) !important}
+[data-theme="moonlight"] .a-settle {animation:aives-settle .7s cubic-bezier(0.16,1,0.3,1) both}
+[data-theme="moonlight"] .a-spoken {transition:color .25s ease-out,background-color .25s ease-out}
+[data-theme="moonlight"] .a-turn-out-s {backface-visibility:hidden;animation:aives-turn-out-s .6s cubic-bezier(0.25,1,0.5,1) both,aives-fade-out .48s linear both}
+[data-theme="moonlight"] .a-turn-in-s {backface-visibility:hidden;animation:aives-turn-in-s .6s cubic-bezier(0.25,1,0.5,1) both,aives-fade-in-late .6s linear both}
+[data-theme="moonlight"] .a-warm {transition:opacity .4s cubic-bezier(0.34,1.32,0.64,1)}
+[data-theme="moonlight"] .a-nav-short {display:none}
+@media (max-width: 760px) {
+  [data-theme="night"] .a-show-sm {display:inline !important}
+  .a-gutter{padding-left:20px !important;padding-right:20px !important}
+  [data-theme="night"] .a-top {height:auto !important;flex-wrap:wrap !important;column-gap:16px !important;row-gap:8px !important;padding-top:14px !important;padding-bottom:12px !important}
+  [data-theme="night"] .a-top-nav {order:3;flex-basis:100% !important;overflow-x:auto;scrollbar-width:none}
+  .a-hide-sm{display:none !important}
+  .a-stack-sm{flex-direction:column !important;align-items:stretch !important}
+  .a-wrap-sm{flex-wrap:wrap !important}
+  .a-grid-1-sm{grid-template-columns:minmax(0,1fr) !important}
+  .a-full-sm{width:100% !important;max-width:none !important}
+  [data-theme="night"] .a-question {font-size:28px !important;line-height:1.16 !important}
+  [data-theme="night"] .a-display {font-size:36px !important;line-height:1.1 !important}
+  [data-theme="night"] .a-clock {font-size:72px !important}
+  [data-theme="night"] .a-transcript {font-size:19px !important;min-height:0 !important}
+  [data-theme="night"] .a-light {transform-origin:center}
+  [data-theme="night"] .a-exam-sm {row-gap:24px !important}
+  [data-theme="night"] .a-qpad {padding-top:16px !important}
+  [data-theme="night"] .a-silhouette {top:16px !important}
+  [data-theme="night"] .a-ctx-sm {margin-top:14px !important}
+  [data-theme="night"] .a-aside-sm {padding-top:0 !important}
+  [data-theme="night"] .a-timer-sm {margin-top:14px !important}
+  [data-theme="night"] .a-finish-sm {margin-top:18px !important}
+  [data-theme="night"] .a-mic-sm {margin-top:14px !important}
+  [data-theme="night"] .a-earlier-sm {grid-row:auto !important;grid-column:auto !important}
+  [data-theme="moonlight"] .a-top {height:auto !important;flex-wrap:wrap !important;column-gap:16px !important;row-gap:0 !important;padding-top:14px !important}
+  [data-theme="moonlight"] .a-top-nav {order:3;flex-basis:100% !important;overflow-x:auto;margin-top:6px !important;scrollbar-width:none;-webkit-mask-image:linear-gradient(90deg,#000 85%,transparent);mask-image:linear-gradient(90deg,#000 85%,transparent);gap:22px !important}
+  [data-theme="moonlight"] .a-nav-short {display:inline !important}
+  [data-theme="moonlight"] .a-top-nav a {height:44px !important}
+  [data-theme="moonlight"] .a-show-sm {display:flex !important}
+  [data-theme="moonlight"] .a-turn-stage {margin:0 !important}
+  [data-theme="moonlight"] .a-title {font-size:30px !important;line-height:1.12 !important}
+  [data-theme="moonlight"] .a-score-xl {font-size:52px !important}
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="night"] .a-rise,
+[data-theme="night"] .a-pop,
+[data-theme="night"] .a-just,
+[data-theme="night"] .a-tick-a,
+[data-theme="night"] .a-tick-b,
+[data-theme="night"] .a-word {animation:aives-fade .16s linear both !important}
+  [data-theme="night"] .a-read {animation:none !important}
+  .a-moon-fill{animation:aives-fade .2s linear both !important}
+  [data-theme="night"] .a-turn-out {animation:aives-fade-out .25s linear both !important}
+  [data-theme="night"] .a-turn-in {animation:aives-fade .25s .2s linear both !important}
+  [data-theme="night"] .a-silhouette,
+[data-theme="night"] .a-flare {display:none !important}
+  [data-theme="night"] .a-light-ai,
+[data-theme="night"] .a-light-voice,
+[data-theme="night"] .a-candle,
+[data-theme="night"] .a-rec {animation:none !important}
+  [data-theme="night"] .a-light-voice {opacity:.7}
+  [data-theme="night"] .a-voice-live {transform:none !important}
+  .a-playhead{transition:none !important}
+  .a-btn:active:not([aria-disabled="true"]){transform:none}
+  [data-theme="night"] .a-btn {transition-property:background-color,border-color,color,opacity}
+  [data-theme="moonlight"] .a-rise,
+[data-theme="moonlight"] .a-pop,
+[data-theme="moonlight"] .a-just,
+[data-theme="moonlight"] .a-tick-a,
+[data-theme="moonlight"] .a-tick-b,
+[data-theme="moonlight"] .a-word,
+[data-theme="moonlight"] .a-settle {animation:aives-fade .16s linear both !important}
+  [data-theme="moonlight"] .a-turn-out-s {animation:aives-fade-out .2s linear both !important}
+  [data-theme="moonlight"] .a-turn-in-s {animation:aives-fade .2s .15s linear both !important}
+  [data-theme="moonlight"] .a-rec {animation:none !important}
+  [data-theme="moonlight"] .a-sort svg {transition:none !important}
+  [data-theme="moonlight"] .a-turn-stage {transition:none !important}
+  [data-theme="moonlight"] .a-warm {transition:none !important}
+  [data-theme="moonlight"] .a-btn {transition-property:background-color,border-color,color,box-shadow}
+}

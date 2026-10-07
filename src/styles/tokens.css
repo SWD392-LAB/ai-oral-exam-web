@@ -1,0 +1,65 @@
+/*
+  AIVES design tokens (source: 02_Thiet-ke/UI-UX/DESIGN.md and DESIGN-SYSTEM.md).
+  Colour is a role: gold = the AI, red = a live voice / open now / error,
+  jade = quiet context, ink or ivory = the human decision.
+  Night is the student and signed-out theme, Moonlight the lecturer/admin theme;
+  the layout sets html[data-theme] so the page ground follows the signed-in role.
+*/
+:root {
+  /* night */
+  --night-indigo: #0F1630;
+  --night-deep: #0A1027;
+  --ivory: #F6F1E7;
+  --ivory-2: rgba(246,241,231,0.74);
+  --ivory-3: rgba(246,241,231,0.6);
+  --ivory-dim: rgba(246,241,231,0.5);
+  --night-edge: rgba(246,241,231,0.4);
+  --night-line: rgba(246,241,231,0.12);
+  --night-field: rgba(10,16,39,0.6);
+  --ivory-hover: #FFFAF0;
+
+  /* lanterns */
+  --lantern-gold: #F5B700;
+  --lantern-red: #E8452C;
+  --ember-text: #FF6A4F;
+  --jade: #7BC4C4;
+
+  /* moonlight */
+  --moonlight: #F4F6FC;
+  --moonlight-bar: rgba(244,246,252,0.78);
+  --field-white: #FFFFFF;
+  --ink-2: #3D4566;
+  --ink-3: #596180;
+  --ink-hover: #1E2A57;
+  --edge: #7F88A6;
+  --line: #DCE0EC;
+  --line-strong: #C9CEDE;
+  --gold-edge: #A87E00;
+  --gold-ink: #7A5300;
+  --red-ink: #B3301A;
+  --red-ink-deep: #8F2512;
+  --jade-ink: #2C6B6B;
+  --jade-select: #CDE6E6;
+
+  /* washes */
+  --ai-wash: rgba(245,183,0,0.05);
+  --red-wash-day: rgba(232,69,44,0.07);
+  --red-wash-night: rgba(232,69,44,0.14);
+  --jade-wash: rgba(123,196,196,0.14);
+
+  /* type */
+  --font-voice: Alegreya, Georgia, serif;
+  --font-ui: "Lexend", "Segoe UI", system-ui, sans-serif;
+
+  /* motion */
+  --ease-grammar: cubic-bezier(0.34,1.32,0.64,1);
+  --ease-arrive: cubic-bezier(0.16,1,0.3,1);
+  --ease-quart: cubic-bezier(0.25,1,0.5,1);
+
+  /* depth: offset shadows only, never a halo */
+  --shadow-night-button: 0 10px 28px -12px rgba(0,0,0,0.55);
+  --shadow-day-button: 0 8px 18px -10px rgba(15,22,48,0.55);
+  --shadow-night-inset: 0 24px 48px -28px rgba(15,22,48,0.7);
+  --shadow-popover: 0 2px 4px rgba(15,22,48,0.06), 0 18px 40px -20px rgba(15,22,48,0.35);
+  --night-inset-glow: radial-gradient(420px 260px at 100% 0%, rgba(123,196,196,0.14), rgba(15,22,48,0) 70%);
+}

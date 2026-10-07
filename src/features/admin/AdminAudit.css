@@ -1,0 +1,23 @@
+/* AdminAudit only (from the wireframe helmet), scoped to .pg-adminaudit */
+.pg-adminaudit .au-arrive {animation:au-grow .5s cubic-bezier(0.25,1,0.5,1) both}
+.pg-adminaudit .au-arrive>div {overflow:hidden;min-height:0}
+.pg-adminaudit .au-arrive .au-li {animation:au-slide .4s cubic-bezier(0.34,1.32,0.64,1) .16s both,au-wash 2.4s ease-out .2s backwards}
+.pg-adminaudit .au-by {display:none}
+.pg-adminaudit input[type="date"].a-field::-webkit-calendar-picker-indicator {cursor:pointer;opacity:.72;border-radius:6px;padding:4px}
+.pg-adminaudit input[type="date"].a-field::-webkit-calendar-picker-indicator:hover {opacity:1;background:rgba(15,22,48,0.06)}
+@keyframes au-grow{from{grid-template-rows:0fr}to{grid-template-rows:1fr}}
+@keyframes au-slide{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:none}}
+@keyframes au-wash{from{background-color:var(--jade-wash)}to{background-color:rgba(123,196,196,0)}}
+@media (max-width: 760px) {
+  .pg-adminaudit .au-cols {display:none !important}
+  .pg-adminaudit .au-half {flex:1 1 0 !important;width:auto !important;min-width:0}
+  .pg-adminaudit .au-day {grid-template-columns:minmax(0,1fr) !important}
+  .pg-adminaudit .au-dayh {flex-direction:row !important;align-items:baseline;gap:8px !important;padding-top:16px !important}
+  .pg-adminaudit .au-li {grid-template-columns:56px minmax(0,1fr) !important;row-gap:6px}
+  .pg-adminaudit .au-c {grid-column:2}
+  .pg-adminaudit .au-by {display:inline}
+}
+@media (prefers-reduced-motion: reduce) {
+  .pg-adminaudit .au-arrive {animation:none !important}
+  .pg-adminaudit .au-arrive .au-li {animation:aives-fade .16s linear both !important}
+}

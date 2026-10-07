@@ -1,0 +1,46 @@
+/* AdminUsers only (from the wireframe helmet), scoped to .pg-adminusers */
+.pg-adminusers .au-open {animation:au-open .45s cubic-bezier(0.16,1,0.3,1) backwards}
+.pg-adminusers .au-close {animation:au-close .26s cubic-bezier(0.25,1,0.5,1) both}
+.pg-adminusers .au-arrive {animation:au-arrive 1.8s cubic-bezier(0.16,1,0.3,1) backwards}
+.pg-adminusers .au-in-a {animation:au-in-a .4s cubic-bezier(0.34,1.32,0.64,1) backwards}
+.pg-adminusers .au-in-b {animation:au-in-b .4s cubic-bezier(0.34,1.32,0.64,1) backwards}
+.pg-adminusers .au-spin {transform-box:fill-box;transform-origin:center;animation:au-spin .9s linear infinite}
+.pg-adminusers .au-turn {transition:transform .4s cubic-bezier(0.34,1.32,0.64,1)}
+.pg-adminusers .au-sr {position:absolute !important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.pg-adminusers .au-night-danger:hover:not([aria-disabled="true"]) {background:rgba(232,69,44,0.16) !important}
+@keyframes au-open{from{opacity:0;clip-path:inset(0 0 100% 0);transform:translateY(-6px)}to{opacity:1;clip-path:inset(0 0 0 0);transform:none}}
+@keyframes au-close{from{opacity:1;clip-path:inset(0 0 0 0)}to{opacity:0;clip-path:inset(0 0 100% 0);transform:translateY(-4px)}}
+@keyframes au-arrive{0%{opacity:0;transform:translateY(-12px);background-color:rgba(123,196,196,0.22)}28%{opacity:1;transform:none;background-color:rgba(123,196,196,0.22)}100%{background-color:rgba(123,196,196,0)}}
+@keyframes au-in-a{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@keyframes au-in-b{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@keyframes au-spin{to{transform:rotate(360deg)}}
+@media (max-width: 760px) {
+  .pg-adminusers .au-scroll {overflow-x:visible !important;margin:0 !important;padding:0 !important}
+  .pg-adminusers .au-table {min-width:0 !important}
+  .pg-adminusers .au-table,
+.pg-adminusers .au-table tbody {display:block}
+  .pg-adminusers .au-table thead {display:none}
+  .pg-adminusers .au-table tr.a-row {display:grid !important;grid-template-columns:minmax(0,1fr) auto;row-gap:6px;padding:16px 0}
+  .pg-adminusers .au-table tr.a-row.au-gone {display:none !important}
+  .pg-adminusers .au-table tr.a-row > td {padding:0 !important}
+  .pg-adminusers .au-c-user {grid-column:1;min-width:0 !important}
+  .pg-adminusers .au-c-acc,
+.pg-adminusers .au-c-status,
+.pg-adminusers .au-c-google,
+.pg-adminusers .au-c-role {display:none}
+  .pg-adminusers .au-table tr.a-row > td.au-c-role.au-editing {display:block;grid-column:1/-1;padding:12px 0 2px !important}
+  .pg-adminusers .au-table tr.a-row > td.au-c-act {grid-column:1/-1;text-align:left !important;padding-top:8px !important}
+  .pg-adminusers .au-c-act .a-btn {min-height:44px}
+  .pg-adminusers .au-meta {display:block !important}
+  .pg-adminusers .au-show-sm {display:inline-flex !important}
+  .pg-adminusers .au-toggle-quiet {align-self:flex-start !important;margin-left:-14px}
+}
+@media (prefers-reduced-motion: reduce) {
+  .pg-adminusers .au-open,
+.pg-adminusers .au-in-a,
+.pg-adminusers .au-in-b {animation:aives-fade .16s linear backwards !important}
+  .pg-adminusers .au-arrive {animation:aives-fade .2s linear backwards !important;background-color:var(--jade-wash)}
+  .pg-adminusers .au-close {animation:aives-fade-out .16s linear both !important}
+  .pg-adminusers .au-spin {animation:none !important}
+  .pg-adminusers .au-turn {transition:none !important}
+}

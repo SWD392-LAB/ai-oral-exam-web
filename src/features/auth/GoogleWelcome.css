@@ -1,0 +1,8 @@
+/* GoogleWelcome only (from the wireframe helmet), scoped to .pg-googlewelcome */
+@media (max-width: 760px) {
+  .pg-googlewelcome .a-question {font-size:34px !important;line-height:1.14 !important}
+  .pg-googlewelcome .a-clock {font-size:88px !important}
+  .pg-googlewelcome .a-transcript {font-size:19px !important}
+  .pg-googlewelcome .gw-stage {margin-left:-20px !important;padding-left:20px !important}
+  .pg-googlewelcome .gw-main {padding-top:48px !important;padding-bottom:64px !important}
+}

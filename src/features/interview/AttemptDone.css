@@ -1,0 +1,6 @@
+/* AttemptDone only (from the wireframe helmet), scoped to .pg-attemptdone */
+@media (max-width: 760px) {
+  .pg-attemptdone .a-question {font-size:34px !important;line-height:1.14 !important}
+  .pg-attemptdone .a-clock {font-size:88px !important}
+  .pg-attemptdone .a-transcript {font-size:19px !important}
+}

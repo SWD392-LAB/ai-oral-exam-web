@@ -1,0 +1,13 @@
+/* ReviewAttempt only (from the wireframe helmet), scoped to .pg-reviewattempt */
+.pg-reviewattempt .a-review-stage {position:relative;perspective:1700px;perspective-origin:46% 360px}
+.pg-reviewattempt .a-seek {-webkit-appearance:none;appearance:none;background:transparent}
+.pg-reviewattempt .a-seek::-webkit-slider-runnable-track {height:44px;background:transparent}
+.pg-reviewattempt .a-seek::-webkit-slider-thumb {-webkit-appearance:none;appearance:none;width:2px;height:44px;background:transparent;border:0}
+.pg-reviewattempt .a-seek::-moz-range-thumb {width:2px;height:44px;background:transparent;border:0}
+.pg-reviewattempt .a-wave:has(.a-seek:focus-visible) {outline:2px solid var(--night-indigo);outline-offset:4px;border-radius:6px}
+.pg-reviewattempt .a-only-sm {display:none !important}
+@media (max-width: 760px) {
+  .pg-reviewattempt .a-score-col {position:static !important}
+  .pg-reviewattempt .a-only-sm {display:flex !important}
+  .pg-reviewattempt .a-main {padding-bottom:96px !important}
+}

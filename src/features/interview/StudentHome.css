@@ -1,0 +1,22 @@
+/* StudentHome only (from the wireframe helmet), scoped to .pg-studenthome */
+@media (max-width: 760px) {
+  .pg-studenthome .a-question {font-size:34px !important;line-height:1.14 !important}
+  .pg-studenthome .a-clock {font-size:88px !important}
+  .pg-studenthome .a-score-xl {font-size:52px !important}
+  .pg-studenthome .a-transcript {font-size:19px !important}
+  .pg-studenthome .sh-act {justify-self:start !important}
+  .pg-studenthome .a-title {font-size:30px !important;line-height:1.12 !important}
+}
+.pg-studenthome .sh-shrink {animation:sh-shrink 1s cubic-bezier(0.16,1,0.3,1) .3s both}
+.pg-studenthome .sh-slide {animation:sh-slide 1s cubic-bezier(0.16,1,0.3,1) .3s both}
+@keyframes sh-shrink{from{transform:scaleX(1)}}
+@keyframes sh-slide{from{transform:translateX(0)}}
+.pg-studenthome .sh-out {animation:aives-fade-out .2s ease-out both}
+.pg-studenthome .sh-spin {transform-box:fill-box;transform-origin:center;animation:sh-spin .9s linear infinite}
+@keyframes sh-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce) {
+  .pg-studenthome .sh-shrink,
+.pg-studenthome .sh-slide {animation:none !important}
+  .pg-studenthome .sh-spin {animation:none !important}
+  .pg-studenthome .sh-out {animation:aives-fade-out .16s linear both !important}
+}
