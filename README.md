@@ -8,7 +8,7 @@ Frontend for **AIVES – AI-powered Viva Exam System** (SWD392). One React web a
 
 Backend repo: `ai-oral-exam-api`. Design documents: `docs` repo.
 
-> The repo currently holds only the folder skeleton and has not been scaffolded yet. Empty folders contain a `.gitkeep`; delete it once the folder has real code.
+> All 21 screens of the approved wireframes are built. Until the API is ready they run on a mock API (see **2.1**), so the app works without a backend.
 
 ---
 
@@ -17,7 +17,7 @@ Backend repo: `ai-oral-exam-api`. Design documents: `docs` repo.
 | Tool | Version | Check |
 |---|---|---|
 | Node.js | 20 LTS or later | `node --version` |
-| Backend `ai-oral-exam-api` | running at `http://localhost:5080` | open http://localhost:5080/health |
+| Backend `ai-oral-exam-api` (only with `VITE_USE_MOCKS=false`) | running at `http://localhost:5080` | open http://localhost:5080/health |
 
 ## 2. Running
 
@@ -26,9 +26,32 @@ npm install
 npm run dev        # http://localhost:5173
 ```
 
+### 2.1 With the mock API (default, no backend needed)
+
+`VITE_USE_MOCKS` is `true` unless you set it, so `npm run dev` is enough. Every request is answered by `src/mocks/` with sample data kept in the browser's memory: **reloading the page (F5) resets everything**, so click through the app instead of reloading while you test a flow.
+
+**Mock accounts** (all use the password `Password@123`; sign in with the account name or the email):
+
+| Account name | Email | Role | Use it to test |
+|---|---|---|---|
+| `hanhg.se18` | `han.hg@example.com` | Student | Take the exam: *My exams* shows a session **open now**, then the lobby (microphone check) and the exam room |
+| `minhanh.se18` | `anh.nguyen@example.com` | Student | Finished exams: one waiting for the lecturer, one with a confirmed score and its report |
+| `bichtt` | `bich.tran@example.com` | Lecturer | Exam sessions (live counts), results, review and confirm scores, class statistics, session setup and publish |
+| `hoant` | `hoa.ngo@example.com` | Administrator | Users, courses, AI and speech settings, audit log |
+
+Things to know while testing:
+
+- The open session is timed from the moment the page loads (about 42 minutes left); each student has **one attempt**, so press F5 to try the exam again.
+- Use **Chrome** for the exam room: it turns your speech into a live transcript. Other browsers show a box to type the answer instead. Allow the microphone when asked.
+- After Han finishes, sign in as `bichtt`: the attempt appears under *Results and review* for *Viva 1 (SE1835)*.
+- *Continue with Google* signs in a sample Google user; no email is really sent (on *Forgot password*, the footer link opens the email link page).
+
+### 2.2 With the real API
+
 Create a `.env.local` file (do not commit it):
 
 ```
+VITE_USE_MOCKS=false
 VITE_API_BASE_URL=http://localhost:5080
 ```
 
