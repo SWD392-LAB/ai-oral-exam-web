@@ -6,7 +6,6 @@ import { SampleNote } from '../../components/SampleNote.jsx'
 import { StudentTopBar } from '../../components/TopBar.jsx'
 import { useLoad } from '../../hooks/useLoad.js'
 import { formatDay, formatTime, minutesBetween, plural } from '../../utils/format.js'
-import './AttemptDone.css'
 
 export default function AttemptDonePage() {
   const { attemptId } = useParams()

@@ -1,9 +1,4 @@
 /* AccountSettings only (from the wireframe helmet), scoped to .pg-accountsettings */
-@media (max-width: 760px) {
-  .pg-accountsettings .a-question {font-size:34px !important;line-height:1.14 !important}
-  .pg-accountsettings .a-clock {font-size:88px !important}
-  .pg-accountsettings .a-transcript {font-size:19px !important}
-}
 
 /* Lecturers and administrators: the same page in Moonlight. The night tokens are re-pointed to
    their Moonlight roles inside the page, so ivory text becomes ink and the ivory button an ink one. */

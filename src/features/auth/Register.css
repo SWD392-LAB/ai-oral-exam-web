@@ -1,7 +1,4 @@
 /* Register only (from the wireframe helmet), scoped to .pg-register */
 @media (max-width: 760px) {
-  .pg-register .a-question {font-size:34px !important;line-height:1.14 !important}
-  .pg-register .a-clock {font-size:88px !important}
-  .pg-register .a-transcript {font-size:19px !important}
   .pg-register .r-main {padding-top:40px !important;padding-bottom:56px !important}
 }

@@ -1,10 +1,5 @@
 /* StudentReport only (from the wireframe helmet), scoped to .pg-studentreport */
 @media (max-width: 760px) {
-  .pg-studentreport .a-question {font-size:34px !important;line-height:1.14 !important}
-  .pg-studentreport .a-clock {font-size:88px !important}
-  .pg-studentreport .a-transcript {font-size:19px !important}
-  .pg-studentreport .a-title {font-size:30px !important;line-height:1.12 !important}
-  .pg-studentreport .a-score-xl {font-size:52px !important}
   .pg-studentreport .r-split {padding-left:0 !important;padding-top:32px !important;box-shadow:inset 0 1px 0 var(--night-line) !important}
   .pg-studentreport .r-qnav {display:grid !important;grid-template-columns:1fr 1fr;gap:8px}
   .pg-studentreport .r-wave {gap:2px !important}
@@ -16,8 +11,7 @@
 .pg-studentreport .r-qbtn:focus-visible {outline:2px solid var(--lantern-gold);outline-offset:2px}
 .pg-studentreport .r-wave:has(.r-seek:focus-visible) {outline:2px solid var(--lantern-gold);outline-offset:4px;border-radius:6px}
 .pg-studentreport .r-inline {text-decoration-line:underline;text-decoration-thickness:1px;text-underline-offset:4px;text-decoration-color:var(--night-edge)}
-.pg-studentreport .r-spin {animation:r-spin .9s linear infinite;transform-origin:center}
-@keyframes r-spin{to{transform:rotate(360deg)}}
+.pg-studentreport .r-spin {animation:aives-spin .9s linear infinite;transform-origin:center}
 @media (prefers-reduced-motion: reduce) {
   .pg-studentreport .r-spin {animation:none !important}
 }

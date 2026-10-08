@@ -1,8 +1,5 @@
 /* ExamLobby only (from the wireframe helmet), scoped to .pg-examlobby */
 @media (max-width: 760px) {
-  .pg-examlobby .a-question {font-size:34px !important;line-height:1.14 !important}
-  .pg-examlobby .a-clock {font-size:88px !important}
-  .pg-examlobby .a-transcript {font-size:19px !important}
   .pg-examlobby .a-rule {padding:18px 0 !important}
   .pg-examlobby .a-rule-p {font-size:17px !important}
 }

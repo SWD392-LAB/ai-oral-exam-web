@@ -7,7 +7,6 @@ import { useMergeState } from '../../hooks/useMergeState.js'
 import { useTimeouts } from '../../hooks/useTimeouts.js'
 import { atLeast } from '../../utils/async.js'
 import { PENDING } from '../../utils/pending.js'
-import './EmailLink.css'
 
 // One page for the three email links: account setup (name + password), password reset (password
 // only, the account name never changes) and email verification. Every link works once and expires.
