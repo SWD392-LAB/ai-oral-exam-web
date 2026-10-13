@@ -62,18 +62,36 @@ Things to know while testing:
 
 The role comes from the `role` claim of the access token (string or array). A user with several roles gets the highest one: Administrator, then Lecturer, then Student.
 
-### 2.2 With the real API
+### 2.2 With the real API (Feature 6 & Feature 7 Read-only)
 
-Create a `.env.local` file (do not commit it):
+Create a `.env.local` file in the project root (you can copy `.env.example`):
 
-```
-VITE_USE_MOCKS=false
+```env
 VITE_API_BASE_URL=http://localhost:5080
+VITE_USE_MOCKS=false
+VITE_OIDC_AUTHORITY=http://localhost:8080/realms/aives
+VITE_OIDC_CLIENT_ID=aives-web
+VITE_OIDC_REDIRECT_URI=http://localhost:5173/auth/callback
+VITE_OIDC_POST_LOGOUT_REDIRECT_URI=http://localhost:5173/sign-in
+VITE_OIDC_SCOPE=openid profile email
 ```
 
-The backend allows CORS from `http://localhost:5173` and `http://localhost:3000`. If you run on another port, add it to `Cors:AllowedOrigins` in the API.
+Ensure Keycloak (`http://localhost:8080`) and Backend API (`http://localhost:5080`) are running, then run `npm run dev`.
 
-Sign-in stays on Keycloak, and the API receives the Keycloak access token as `Authorization: Bearer`. **Test accounts:** the demo users in **2.1**; see also the "Sample data" table in the `ai-oral-exam-api` README. Use `han.hg@aives.edu.vn` to demo the interview flow.
+#### Connected Features & Seed Data Testing:
+
+1. **Lecturer (`an.nv@aives.edu.vn` / `Password@123`):**
+   - **Exam Sessions & Courses (Feature 7):** Open `/lecturer/sessions` to view the course dropdown (`SWD392`) and session list.
+   - **Class Results & CSV Export (Feature 6):** Open `/lecturer/sessions/33333333-0000-0000-0000-000000000001/results` to view student grades. Click *Export grade sheet* to download the live UTF-8 BOM CSV.
+   - **Class Statistics (Feature 6):** Open `/lecturer/statistics?session=33333333-0000-0000-0000-000000000001` to view the 10-bin score distribution chart and question difficulty analysis.
+
+2. **Student with Finalized Score (`chau.lm@aives.edu.vn` / `Password@123`):**
+   - **Student Report (Feature 6):** Open `/student/attempts/66666666-0000-0000-0000-000000000001/report` to view confirmed score, lecturer comments, full question-by-question dialogue turns, and audio player waveform.
+
+3. **Student with Pending Review (`dung.pq@aives.edu.vn` / `Password@123`):**
+   - **Pending Report (Feature 6):** Open `/student/attempts/66666666-0000-0000-0000-000000000002/report` to observe the graceful "Waiting for review" banner and checklist milestones.
+
+> **Note on Unmerged Features:** Backend CRUD endpoints (creating/editing exam sessions, rubrics, participants, publish, and Admin CRUD) are currently on unmerged backend branches. The UI will display empty states or retain defaults when accessing those features until merged.
 
 ## 3. Project structure
 

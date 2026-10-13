@@ -41,9 +41,9 @@ export function decodeJwt(token) {
 // Highest first: a user with several roles gets the most powerful one
 const ROLE_PRIORITY = ['Administrator', 'Lecturer', 'Student']
 
-// Only the "role" claim counts (string or array)
+// Only the "role" claim counts (string or array, support realm_access.roles fallback)
 export function roleOf(claims) {
-  const roles = [].concat(claims?.role ?? [])
+  const roles = [].concat(claims?.role ?? [], claims?.realm_access?.roles ?? [])
   return ROLE_PRIORITY.find((r) => roles.includes(r)) ?? null
 }
 
@@ -54,5 +54,6 @@ export function userFromOidc(oidcUser) {
   const profile = oidcUser.profile ?? {}
   const email = claims.email ?? profile.email ?? ''
   const fullName = claims.name ?? profile.name ?? email
-  return { id: claims.sub ?? profile.sub, email, fullName, username: fullName, role: roleOf(claims) }
+  const username = claims.preferred_username ?? profile.preferred_username ?? fullName
+  return { id: claims.sub ?? profile.sub, email, fullName, username, role: roleOf(claims) }
 }

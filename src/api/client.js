@@ -94,10 +94,44 @@ async function send(method, path, { body, query } = {}, token) {
   return data
 }
 
+export async function download(path, defaultFileName = 'download.csv') {
+  const token = await accessToken()
+  let res
+  try {
+    res = await fetch(BASE_URL + path, {
+      method: 'GET',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+  } catch {
+    throw new ApiError({ code: 'network_error', message: 'Could not reach server.' })
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => null)
+    throw new ApiError(err?.code ? err : { code: 'http_' + res.status, message: 'Export failed.' }, res.status)
+  }
+  const blob = await res.blob()
+  let filename = defaultFileName
+  const disposition = res.headers.get('content-disposition')
+  if (disposition && disposition.includes('filename=')) {
+    const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
+    if (match?.[1]) filename = match[1].replace(/['"]/g, '').trim()
+  }
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+  return { fileName: filename }
+}
+
 export const api = {
   get: (path, query) => request('GET', path, { query }),
   post: (path, body) => request('POST', path, { body }),
   put: (path, body) => request('PUT', path, { body }),
   patch: (path, body) => request('PATCH', path, { body }),
   del: (path) => request('DELETE', path),
+  download: (path, defaultFileName) => download(path, defaultFileName),
 }

@@ -181,6 +181,10 @@ const route = (method, pattern, handler) => {
   routes.push({ method, re, keys, handler })
 }
 
+// ---------- health & auth ----------
+route('GET', '/health', () => ({ status: 'Healthy', database: 'Healthy' }))
+route('GET', '/api/auth/me', ({ user }) => publicUser(user))
+
 // ---------- account ----------
 route('GET', '/api/account', ({ user }) => publicUser(user))
 route('PATCH', '/api/account', ({ user, body }) => {

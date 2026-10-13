@@ -12,8 +12,8 @@ function AuthState({ children }) {
   const oidc = useOidc()
   // true after the server rejected the token, so Sign in can say why the user is there
   const [sessionEnded, setSessionEnded] = useState(false)
-  // the username lives in the account, not in the token (Account settings can change it)
-  const [username, setUsername] = useState(null)
+  // server-side user profile from GET /api/auth/me (Single Source of Truth for role)
+  const [profile, setProfile] = useState(null)
 
   useEffect(() => {
     setSessionEndedHandler(() => setSessionEnded(true))
@@ -24,17 +24,34 @@ function AuthState({ children }) {
 
   useEffect(() => {
     if (!id) return
-    accountApi.get().then((a) => setUsername(a.username ?? null)).catch(() => {})
+    accountApi.get().then((p) => {
+      if (p) setProfile(p)
+    }).catch(() => {})
   }, [id])
 
-  const user = useMemo(() => base && (username ? { ...base, username } : base), [base, username])
+  const user = useMemo(() => {
+    if (!base) return null
+    return {
+      ...base,
+      ...(profile ?? {}),
+      role: profile?.role ?? base.role,
+      fullName: profile?.fullName ?? base.fullName,
+      username: profile?.username ?? base.username,
+      studentCode: profile?.studentCode ?? null,
+      lecturerCode: profile?.lecturerCode ?? null,
+    }
+  }, [base, profile])
   const ready = !oidc.isLoading
 
   // rejects when Keycloak cannot be reached: the Sign in page says so
   const signIn = useCallback((from) => userManager.signinRedirect({ state: { from } }), [])
 
+  const setUsername = useCallback((name) => {
+    setProfile((prev) => ({ ...(prev ?? {}), username: name }))
+  }, [])
+
   const signOut = useCallback(async () => {
-    setUsername(null)
+    setProfile(null)
     try {
       await userManager.signoutRedirect()
     } catch {
