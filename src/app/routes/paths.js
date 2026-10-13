@@ -1,10 +1,7 @@
 // One place for every URL in the app, so pages never hard-code a route.
 export const paths = {
   signIn: '/sign-in',
-  register: '/register',
-  forgotPassword: '/forgot-password',
-  emailLink: (token = 'demo-setup') => `/email-link/${token}`,
-  welcome: '/welcome',
+  authCallback: '/auth/callback',
   account: '/account',
 
   studentHome: '/student',

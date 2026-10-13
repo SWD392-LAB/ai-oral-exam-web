@@ -70,7 +70,8 @@ export default function AdminUsersPage() {
     let note = '', noteInk = 'var(--jade-ink)'
     if (off) { note = 'Exam records kept'; noteInk = 'var(--ink-3)' }
     else if (pending && just !== 'new') note = sentDay === 'Today' ? 'today' : sentDay
-    const self = id === me?.id
+    // by email: the id in the Keycloak token is not the id of the account list
+    const self = !!me?.email && u.email.toLowerCase() === me.email.toLowerCase()
     let cls = 'a-row'
     if (m.arrive === id) cls += ' au-arrive'
     else if (m.flip) cls += m.flip % 2 ? ' au-in-a' : ' au-in-b'

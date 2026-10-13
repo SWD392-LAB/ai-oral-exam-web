@@ -1,5 +1,0 @@
-/* GoogleWelcome only (from the wireframe helmet), scoped to .pg-googlewelcome */
-@media (max-width: 760px) {
-  .pg-googlewelcome .gw-stage {margin-left:-20px !important;padding-left:20px !important}
-  .pg-googlewelcome .gw-main {padding-top:48px !important;padding-bottom:64px !important}
-}

@@ -1,4 +1,0 @@
-/* Register only (from the wireframe helmet), scoped to .pg-register */
-@media (max-width: 760px) {
-  .pg-register .r-main {padding-top:40px !important;padding-bottom:56px !important}
-}

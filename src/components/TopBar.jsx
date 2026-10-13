@@ -15,7 +15,7 @@ const navStyle = (current, night) => ({
 function SignOut({ color }) {
   const { signOut } = useAuth()
   return (
-    <Link className="a-link" to={paths.signIn} onClick={() => signOut()} style={{ color }}>
+    <Link className="a-link" to={paths.signIn} onClick={(e) => { e.preventDefault(); signOut() }} style={{ color }}>
       Sign out
     </Link>
   )

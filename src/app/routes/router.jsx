@@ -1,12 +1,10 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom'
 import ThemeLayout from '../layouts/ThemeLayout.jsx'
+import RouteError from '../../components/RouteError.jsx'
 import RequireRole, { GuestOnly } from './RequireRole.jsx'
 import { paths } from './paths.js'
 import SignInPage from '../../features/auth/SignInPage.jsx'
-import RegisterPage from '../../features/auth/RegisterPage.jsx'
-import ForgotPasswordPage from '../../features/auth/ForgotPasswordPage.jsx'
-import EmailLinkPage from '../../features/auth/EmailLinkPage.jsx'
-import GoogleWelcomePage from '../../features/auth/GoogleWelcomePage.jsx'
+import AuthCallbackPage from '../../features/auth/AuthCallbackPage.jsx'
 import AccountSettingsPage from '../../features/account/AccountSettingsPage.jsx'
 import AdminUsersPage from '../../features/admin/AdminUsersPage.jsx'
 import AdminCoursesPage from '../../features/admin/AdminCoursesPage.jsx'
@@ -30,84 +28,86 @@ const lecturer = ['Lecturer']
 const admin = ['Administrator']
 
 export const router = createBrowserRouter([
-  { path: '/', element: <Navigate to={paths.signIn} replace /> },
-
-  // signed out and students: Night
+  // A page that crashes while rendering, or an address that matches no page (404), shows RouteError
   {
-    element: <ThemeLayout theme="night" />,
+    element: <Outlet />,
+    errorElement: <RouteError />,
     children: [
+      { path: '/', element: <Navigate to={paths.signIn} replace /> },
+
+      // signed out and students: Night
       {
-        element: <GuestOnly />,
+        element: <ThemeLayout theme="night" />,
         children: [
-          { path: paths.signIn, element: <SignInPage /> },
-          { path: paths.register, element: <RegisterPage /> },
-          { path: paths.forgotPassword, element: <ForgotPasswordPage /> },
+          {
+            element: <GuestOnly />,
+            children: [
+              { path: paths.signIn, element: <SignInPage /> },
+            ],
+          },
+          // Keycloak sends the browser back here: no guard may run before the code exchange ends
+          { path: paths.authCallback, element: <AuthCallbackPage /> },
+          {
+            element: <RequireRole roles={student} />,
+            children: [
+              { path: paths.studentHome, element: <StudentHomePage /> },
+              { path: '/student/sessions/:sessionId/lobby', element: <ExamLobbyPage /> },
+              { path: '/student/attempts/:attemptId', element: <InterviewRoomPage /> },
+              { path: '/student/attempts/:attemptId/done', element: <AttemptDonePage /> },
+              { path: '/student/attempts/:attemptId/report', element: <StudentReportPage /> },
+            ],
+          },
         ],
       },
-      // email links open whether or not someone is signed in on this browser
-      { path: '/email-link/:token', element: <EmailLinkPage /> },
+
+      // lecturers: Moonlight
       {
-        element: <RequireRole roles={student} />,
+        element: <ThemeLayout theme="moonlight" />,
         children: [
-          { path: paths.studentHome, element: <StudentHomePage /> },
-          { path: paths.welcome, element: <GoogleWelcomePage /> },
-          { path: '/student/sessions/:sessionId/lobby', element: <ExamLobbyPage /> },
-          { path: '/student/attempts/:attemptId', element: <InterviewRoomPage /> },
-          { path: '/student/attempts/:attemptId/done', element: <AttemptDonePage /> },
-          { path: '/student/attempts/:attemptId/report', element: <StudentReportPage /> },
+          {
+            element: <RequireRole roles={lecturer} />,
+            children: [
+              { path: paths.sessions, element: <LecturerSessionsPage /> },
+              { path: paths.results, element: <LecturerSessionsPage mode="results" /> },
+              { path: paths.newSession, element: <NewSessionPage /> },
+              { path: '/lecturer/sessions/:sessionId/setup', element: <SessionSetupPage /> },
+              { path: '/lecturer/sessions/:sessionId/students', element: <SessionStudentsPage /> },
+              { path: '/lecturer/sessions/:sessionId/results', element: <SessionResultsPage /> },
+              { path: '/lecturer/attempts/:attemptId/review', element: <ReviewAttemptPage /> },
+              { path: paths.statistics, element: <ClassStatsPage /> },
+            ],
+          },
+        ],
+      },
+
+      // administrators: Moonlight
+      {
+        element: <ThemeLayout theme="moonlight" />,
+        children: [
+          {
+            element: <RequireRole roles={admin} />,
+            children: [
+              { path: paths.adminUsers, element: <AdminUsersPage /> },
+              { path: paths.adminCourses, element: <AdminCoursesPage /> },
+              { path: paths.adminAi, element: <AdminAIPage /> },
+              { path: paths.adminAudit, element: <AdminAuditPage /> },
+            ],
+          },
+        ],
+      },
+
+      // every role: the theme follows the signed-in role
+      {
+        element: <ThemeLayout theme="role" />,
+        children: [
+          {
+            element: <RequireRole />,
+            children: [
+              { path: paths.account, element: <AccountSettingsPage /> },
+            ],
+          },
         ],
       },
     ],
   },
-
-  // lecturers: Moonlight
-  {
-    element: <ThemeLayout theme="moonlight" />,
-    children: [
-      {
-        element: <RequireRole roles={lecturer} />,
-        children: [
-          { path: paths.sessions, element: <LecturerSessionsPage /> },
-          { path: paths.results, element: <LecturerSessionsPage mode="results" /> },
-          { path: paths.newSession, element: <NewSessionPage /> },
-          { path: '/lecturer/sessions/:sessionId/setup', element: <SessionSetupPage /> },
-          { path: '/lecturer/sessions/:sessionId/students', element: <SessionStudentsPage /> },
-          { path: '/lecturer/sessions/:sessionId/results', element: <SessionResultsPage /> },
-          { path: '/lecturer/attempts/:attemptId/review', element: <ReviewAttemptPage /> },
-          { path: paths.statistics, element: <ClassStatsPage /> },
-        ],
-      },
-    ],
-  },
-
-  // administrators: Moonlight
-  {
-    element: <ThemeLayout theme="moonlight" />,
-    children: [
-      {
-        element: <RequireRole roles={admin} />,
-        children: [
-          { path: paths.adminUsers, element: <AdminUsersPage /> },
-          { path: paths.adminCourses, element: <AdminCoursesPage /> },
-          { path: paths.adminAi, element: <AdminAIPage /> },
-          { path: paths.adminAudit, element: <AdminAuditPage /> },
-        ],
-      },
-    ],
-  },
-
-  // every role: the theme follows the signed-in role
-  {
-    element: <ThemeLayout theme="role" />,
-    children: [
-      {
-        element: <RequireRole />,
-        children: [
-          { path: paths.account, element: <AccountSettingsPage /> },
-        ],
-      },
-    ],
-  },
-
-  { path: '*', element: <Navigate to={paths.signIn} replace /> },
 ])

@@ -4,24 +4,10 @@ import { api } from './client.js'
 
 const enc = encodeURIComponent
 
-// Access Control & Exam Configuration (F7): accounts
-export const authApi = {
-  login: (login, password) => api.post('/api/auth/login', { login, password }),
-  google: (idToken) => api.post('/api/auth/google', { idToken }),
-  logout: () => api.post('/api/auth/logout'),
-  me: () => api.get('/api/auth/me'),
-  accountNameAvailability: (name) => api.get(`/api/auth/account-names/${enc(name)}`),
-  register: (accountName, email, password) => api.post('/api/auth/register', { accountName, email, password }),
-  forgotPassword: (email) => api.post('/api/auth/forgot-password', { email }),
-  readEmailLink: (token) => api.get(`/api/email-links/${enc(token)}`),
-  useEmailLink: (token, body) => api.post(`/api/email-links/${enc(token)}`, body),
-}
-
+// Access Control & Exam Configuration (F7): accounts. Sign-in, registration and password reset are Keycloak's.
 export const accountApi = {
   get: () => api.get('/api/account'),
   changeUsername: (username) => api.patch('/api/account', { username }),
-  requestSetupLink: () => api.post('/api/account/setup-link'),
-  linkGoogle: (idToken) => api.post('/api/account/google-link', { idToken }),
 }
 
 // AI Viva Interview (F3)

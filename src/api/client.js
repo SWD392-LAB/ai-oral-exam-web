@@ -1,23 +1,11 @@
 // Shared HTTP client (FE-PLAT-02).
 // Every service calls request(); with VITE_USE_MOCKS=true the same call is answered
 // by src/mocks/server.js, so switching to the real API is one line in .env.local.
+// The bearer token is the Keycloak access token kept by the UserManager (features/auth/oidc.js).
+import { userManager } from '../features/auth/oidc.js'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5080'
 export const USE_MOCKS = import.meta.env.VITE_USE_MOCKS !== 'false'
-
-const TOKEN_KEY = 'aives.token'
-
-export const tokenStore = {
-  get() {
-    try { return localStorage.getItem(TOKEN_KEY) } catch { return null }
-  },
-  set(token) {
-    try {
-      if (token) localStorage.setItem(TOKEN_KEY, token)
-      else localStorage.removeItem(TOKEN_KEY)
-    } catch { /* storage blocked: the session lasts until reload */ }
-  },
-}
 
 // Every API error has one shape: { code, message, traceId, details } (README, section 4).
 export class ApiError extends Error {
@@ -37,16 +25,52 @@ function withQuery(path, query) {
   return s ? `${path}?${s}` : path
 }
 
-export async function request(method, path, { body, query } = {}) {
+// AuthContext registers what happens when the server stops accepting the token
+let onSessionEnded = () => {}
+export const setSessionEndedHandler = (fn) => { onSessionEnded = fn }
+
+async function accessToken() {
+  try { return (await userManager.getUser())?.access_token ?? null } catch { return null }
+}
+
+// Several requests can get a 401 together: they share one renewal
+let renewing = null
+const renew = () => {
+  renewing ??= userManager.signinSilent().then((u) => u?.access_token ?? null).catch(() => null).finally(() => { renewing = null })
+  return renewing
+}
+
+export async function request(method, path, options = {}) {
+  const token = await accessToken()
+  try {
+    return await send(method, path, options, token)
+  } catch (err) {
+    // Sign-in failures carry no token: only a 401 on a request that had one means the session is over.
+    if (err.status !== 401 || !token) throw err
+    // The token may just have expired: renew with the refresh token and try once more.
+    const fresh = await renew()
+    if (fresh && fresh !== token) {
+      try {
+        return await send(method, path, options, fresh)
+      } catch (err2) {
+        if (err2.status !== 401) throw err2
+      }
+    }
+    await userManager.removeUser().catch(() => {})
+    onSessionEnded()
+    throw err
+  }
+}
+
+async function send(method, path, { body, query } = {}, token) {
   const url = withQuery(path, query)
 
   if (USE_MOCKS) {
     const { handleMock } = await import('../mocks/server.js')
-    return handleMock(method, url, body, tokenStore.get())
+    return handleMock(method, url, body, token)
   }
 
   const headers = { Accept: 'application/json' }
-  const token = tokenStore.get()
   if (token) headers.Authorization = `Bearer ${token}`
   const isForm = body instanceof FormData
   if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json'

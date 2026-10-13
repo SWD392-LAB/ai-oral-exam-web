@@ -1,7 +1,8 @@
 // Mock API: answers request() calls with the same URLs, shapes and error codes the real API will use.
 import { ApiError } from '../api/client.js'
+import { decodeJwt } from '../features/auth/oidc.js'
 import { sessionPhase } from '../utils/enums.js'
-import { addAttempt, addUser, db, generateResponses, PASSWORD, rand, splitScore } from './db.js'
+import { addAttempt, addUser, db, generateResponses, rand, splitScore } from './db.js'
 
 const LATENCY = [180, 520]
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -156,16 +157,21 @@ function attemptForReview(a) {
 }
 
 // ---------- auth ----------
-const session = { userId: null }
+// Sign-in is Keycloak. The mock does not check the token: it only reads who it belongs to.
+// TEMPORARY (remove when the real API is connected, which verifies the Keycloak token itself):
+// the demo users of the realm "aives" stand in for existing mock users, so their screens have data.
+const KEYCLOAK_DEMO_USERS = {
+  'han.hg@aives.edu.vn': 'han', // Student: has the exam open now
+  'an.nv@aives.edu.vn': 'bich', // Lecturer: owns the sample sessions
+  'admin@aives.edu.vn': 'hoa', // Administrator
+}
 const me = (token) => {
-  const id = token?.startsWith('mock.') ? token.slice(5) : null
-  const u = id && userById(id)
+  const email = String(decodeJwt(token ?? '').email ?? '').toLowerCase()
+  const u = userById(KEYCLOAK_DEMO_USERS[email])
   if (!u || !u.active) fail('unauthorized', 'Your session has ended. Sign in again.', 401)
   return u
 }
 const requireRole = (u, ...roles) => { if (!roles.includes(u.role)) fail('forbidden', 'You do not have access to this page.', 403) }
-
-const issue = (u) => { session.userId = u.id; return { accessToken: 'mock.' + u.id, user: publicUser(u) } }
 
 // ---------- routes ----------
 const routes = []
@@ -174,85 +180,6 @@ const route = (method, pattern, handler) => {
   const re = new RegExp('^' + pattern.replace(/:(\w+)/g, (_, k) => { keys.push(k); return '([^/]+)' }) + '$')
   routes.push({ method, re, keys, handler })
 }
-
-route('POST', '/api/auth/login', ({ body }) => {
-  const login = (body?.login ?? '').trim().toLowerCase()
-  const u = db.users.find((x) => x.email.toLowerCase() === login || x.accountName?.toLowerCase() === login)
-  if (!u || !u.hasPassword || body?.password !== PASSWORD) fail('invalid_credentials', 'That account name, email or password is not right.', 401)
-  if (!u.active) fail('account_deactivated', 'This account is deactivated.', 403)
-  if (!u.emailVerified) fail('email_not_verified', 'Confirm your email first. Use the link we sent you.', 403)
-  return issue(u)
-})
-
-// Without a real Google client, the mock signs in as one Google identity: the first time creates the account
-const GOOGLE = { email: 'minh.tran@example.com', name: 'Tran Nhat Minh' }
-route('POST', '/api/auth/google', () => {
-  let u = db.users.find((x) => x.email === GOOGLE.email)
-  let firstSignIn = false
-  if (u && !u.googleLinked) fail('google_not_linked', 'This Google email belongs to an AIVES account that is not linked to Google.', 409)
-  if (u && !u.active) fail('account_deactivated', 'This account is deactivated.', 403)
-  if (!u) {
-    u = addUser({ fullName: GOOGLE.name, username: GOOGLE.email.split('@')[0], email: GOOGLE.email, googleLinked: true, hasPassword: false })
-    firstSignIn = true
-  }
-  return { ...issue(u), firstSignIn }
-})
-
-route('POST', '/api/auth/logout', () => { session.userId = null; return null })
-route('GET', '/api/auth/me', ({ user }) => publicUser(user))
-
-route('GET', '/api/auth/account-names/:name', ({ params }) => {
-  const name = decodeURIComponent(params.name).toLowerCase()
-  const taken = ['minhanh', 'anh.nguyen', 'admin', 'minhanh.se17'].includes(name) || db.users.some((u) => u.accountName?.toLowerCase() === name)
-  let suggestion = null
-  if (taken) { for (let i = 18; !suggestion; i++) { const c = `${name.replace(/\.se\d+$/, '')}.se${i}`; if (!db.users.some((u) => u.accountName === c)) suggestion = c } }
-  return { available: !taken, suggestion }
-})
-
-route('POST', '/api/auth/register', ({ body }) => {
-  const accountName = (body?.accountName ?? '').trim()
-  const email = (body?.email ?? '').trim().toLowerCase()
-  if (db.users.some((u) => u.accountName?.toLowerCase() === accountName.toLowerCase())) fail('account_name_taken', 'That account name is taken.', 409)
-  if (db.users.some((u) => u.email === email)) fail('email_taken', 'An account with this email already exists. Sign in, or use Forgot password.', 409)
-  const u = addUser({ fullName: accountName, username: accountName, accountName, email, emailVerified: false })
-  db.emailLinks['verify-' + u.id] = { purpose: 'EmailVerification', userId: u.id, expiresAt: new Date(Date.now() + 864e5).toISOString(), usedAt: null }
-  return { email, verifyToken: 'verify-' + u.id }
-})
-
-// Same answer whether or not the email is registered
-route('POST', '/api/auth/forgot-password', ({ body }) => {
-  const u = db.users.find((x) => x.email === (body?.email ?? '').trim().toLowerCase() && x.active)
-  if (!u) return { demoToken: null }
-  db.emailLinks['reset-' + u.id] = { purpose: u.hasPassword ? 'PasswordReset' : 'AccountSetup', userId: u.id, expiresAt: new Date(Date.now() + 36e5).toISOString(), usedAt: null }
-  // mock only: lets the demo open the link that would have been emailed
-  return { demoToken: 'reset-' + u.id }
-})
-
-const linkOf = (token) => {
-  const l = db.emailLinks[token]
-  if (!l || l.usedAt || new Date(l.expiresAt) < new Date()) fail('link_invalid', 'This link no longer works.', 410)
-  return l
-}
-route('GET', '/api/email-links/:token', ({ params }) => {
-  const l = linkOf(params.token)
-  const u = userById(l.userId)
-  if (l.purpose === 'EmailVerification') { u.emailVerified = true; l.usedAt = nowIso() }
-  return { purpose: l.purpose, email: u.email, needsAccountName: l.purpose === 'AccountSetup' && !u.accountName, accountName: u.accountName, fullName: u.fullName }
-})
-route('POST', '/api/email-links/:token', ({ params, body }) => {
-  const l = linkOf(params.token)
-  const u = userById(l.userId)
-  if (l.purpose === 'AccountSetup' && !u.accountName) {
-    const name = (body?.accountName ?? '').trim()
-    if (!name) fail('account_name_required', 'Choose an account name.')
-    if (db.users.some((x) => x.accountName?.toLowerCase() === name.toLowerCase())) fail('account_name_taken', 'That account name is taken.', 409)
-    u.accountName = name
-  }
-  u.hasPassword = true
-  u.emailVerified = true
-  l.usedAt = nowIso()
-  return { purpose: l.purpose, accountName: u.accountName, email: u.email }
-})
 
 // ---------- account ----------
 route('GET', '/api/account', ({ user }) => publicUser(user))
@@ -263,12 +190,6 @@ route('PATCH', '/api/account', ({ user, body }) => {
   user.username = name
   return publicUser(user)
 })
-route('POST', '/api/account/setup-link', ({ user }) => {
-  db.emailLinks['setup-' + user.id] = { purpose: 'AccountSetup', userId: user.id, expiresAt: new Date(Date.now() + 864e5).toISOString(), usedAt: null }
-  user.setupSentAt = nowIso()
-  return { sentTo: user.email }
-})
-route('POST', '/api/account/google-link', ({ user }) => { user.googleLinked = true; return publicUser(user) })
 
 // ---------- student ----------
 route('GET', '/api/student/exam-sessions', ({ user }) => {
@@ -593,8 +514,6 @@ route('GET', '/api/admin/audit-logs', ({ user }) => {
 })
 
 // ---------- dispatcher ----------
-const PUBLIC = ['/api/auth/login', '/api/auth/google', '/api/auth/register', '/api/auth/forgot-password', '/api/auth/account-names/', '/api/email-links/']
-
 export async function handleMock(method, url, body, token) {
   const [path, qs] = url.split('?')
   const query = Object.fromEntries(new URLSearchParams(qs ?? ''))
@@ -605,8 +524,7 @@ export async function handleMock(method, url, body, token) {
     const m = path.match(r.re)
     if (!m) continue
     const params = Object.fromEntries(r.keys.map((k, i) => [k, m[i + 1]]))
-    const isPublic = PUBLIC.some((p) => path.startsWith(p))
-    const user = isPublic ? null : me(token)
+    const user = me(token)
     return clone(r.handler({ params, query, body, user }))
   }
   fail('not_found', `No mock for ${method} ${path}`, 404)

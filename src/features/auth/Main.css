@@ -2,9 +2,11 @@
 @media (max-width: 760px) {
   .pg-main .s-grid {grid-template-columns:minmax(0,1fr) !important;grid-template-areas:'head' 'form' 'demo' !important;row-gap:48px !important;padding-top:40px !important;padding-bottom:56px !important}
   .pg-main .s-form {justify-self:stretch !important;max-width:none !important}
-  .pg-main .s-stage {margin-left:-20px !important;padding-left:20px !important;margin-right:-20px;padding-right:20px}
+  .pg-main .s-stage {margin-left:-20px !important;padding-left:20px !important;margin-right:-20px;padding-right:20px !important}
   .pg-main .s-sil {left:20px !important}
   .pg-main .s-quote {font-size:22px !important}
+  /* the recording glow reaches 420px below the sample; the page ends sooner on a phone and would cut it in a hard edge */
+  .pg-main section[aria-label] > div:first-child > .a-light:first-child {bottom:-60px !important;height:480px !important}
 }
 .pg-main .s-paused .a-light-ai,
 .pg-main .s-paused .a-light-voice,

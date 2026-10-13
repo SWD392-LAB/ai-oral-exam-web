@@ -18,3 +18,9 @@
   --red-wash-night: rgba(232,69,44,0.07);
   color: #0F1630;
 }
+
+/* The top bar keeps its Moonlight ink: inside the page the night tokens are swapped, which would turn the
+   wordmark, current tab and Sign out cream on the light bar. */
+.pg-accountsettings.as-moon .a-top {
+  --night-indigo: #0F1630;
+}
