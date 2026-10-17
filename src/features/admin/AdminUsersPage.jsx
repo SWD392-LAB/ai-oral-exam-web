@@ -22,7 +22,7 @@ export default function AdminUsersPage() {
   const { data: users, setData } = useLoad(() => adminApi.users(), [])
   const { later, clear } = useTimeouts()
   const [m, set] = useMergeState({
-    open: false, closing: false, fEmail: '', fName: '', fRole: 'Lecturer', err: {}, sending: false, sent: false, sentTo: '',
+    open: false, closing: false, fEmail: '', fName: '', fRole: 'Lecturer', fCode: '', err: {}, sending: false, sent: false, sentTo: '',
     editing: null, editVal: '', confirm: null, confirmClosing: false, busy: false,
     just: null, arrive: null, totalFlip: 0, fr: 'all', fs: 'all', q: '', flip: 0, error: null,
   })
@@ -47,14 +47,17 @@ export default function AdminUsersPage() {
     else if (!EMAIL_RE.test(email)) err.email = 'Enter an email address like name@example.com.'
     else if (all.some((u) => u.email.toLowerCase() === email.toLowerCase())) err.email = 'An account already uses this email.'
     if (!name) err.name = 'Enter the full name.'
-    if (err.email || err.name) { set({ err, sent: false }); return }
+    // the API requires a student code for a student and a lecturer code for a lecturer
+    const code = m.fCode.trim()
+    if (m.fRole !== 'Administrator' && !code) err.code = `Enter the ${m.fRole === 'Student' ? 'student' : 'lecturer'} code.`
+    if (err.email || err.name || err.code) { set({ err, sent: false }); return }
     set({ err: {}, sending: true, sent: false })
     try {
-      const u = await atLeast(adminApi.createUser(name, email, m.fRole), 900)
+      const u = await atLeast(adminApi.createUser(name, email, m.fRole, code), 900)
       setData((list) => [...list, u])
-      set((p) => ({ sending: false, sent: true, sentTo: email, fEmail: '', fName: '', fRole: 'Lecturer', totalFlip: p.totalFlip + 1, just: { id: u.id, f: 'new' }, arrive: u.id, fr: 'all', fs: 'all', q: '' }))
+      set((p) => ({ sending: false, sent: true, sentTo: email, fEmail: '', fName: '', fRole: 'Lecturer', fCode: '', totalFlip: p.totalFlip + 1, just: { id: u.id, f: 'new' }, arrive: u.id, fr: 'all', fs: 'all', q: '' }))
     } catch (e) {
-      set({ sending: false, err: { email: e.message } })
+      set({ sending: false, err: String(e.code ?? '').includes('code') ? { code: e.message } : { email: e.message } })
     }
   }
   const closePanel = () => { set({ closing: true }); later(() => set({ open: false, closing: false, sent: false, err: {} }), 260) }
@@ -166,11 +169,15 @@ export default function AdminUsersPage() {
     togglePad: open && !m.closing ? '14px' : '20px',
     toggleShadow: open && !m.closing ? 'none' : '0 8px 18px -10px rgba(15,22,48,0.55)',
     close: closePanel,
-    fEmail: m.fEmail, fName: m.fName, fRole: m.fRole,
+    fEmail: m.fEmail, fName: m.fName, fRole: m.fRole, fCode: m.fCode,
+    needsCode: m.fRole !== 'Administrator',
+    codeLabel: m.fRole === 'Student' ? 'Student code' : 'Lecturer code',
+    setCode: (e) => set((p) => ({ fCode: e.target.value, err: { ...p.err, code: '' } })),
+    codeBad: m.err.code ? 'true' : 'false',
     setEmail: (e) => set((p) => ({ fEmail: e.target.value, err: { ...p.err, email: '' } })),
     setName: (e) => set((p) => ({ fName: e.target.value, err: { ...p.err, name: '' } })),
-    setRole: (e) => set({ fRole: e.target.value }),
-    err: { email: m.err.email || '', name: m.err.name || '' },
+    setRole: (e) => set((p) => ({ fRole: e.target.value, fCode: '', err: { ...p.err, code: '' } })),
+    err: { email: m.err.email || '', name: m.err.name || '', code: m.err.code || '' },
     emailBad: m.err.email ? 'true' : 'false',
     nameBad: m.err.name ? 'true' : 'false',
     sending: m.sending, notSending: !m.sending,
@@ -221,7 +228,7 @@ export default function AdminUsersPage() {
                   Create a user
                 </h2>
               </div>
-              <div className="a-grid-1-sm" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.25fr) minmax(0, 1fr) 210px auto", gap: "16px", alignItems: "start" }}>
+              <div className="a-grid-1-sm" style={{ display: "grid", gridTemplateColumns: v.needsCode ? "minmax(0, 1.25fr) minmax(0, 1fr) 210px minmax(0, 0.8fr) auto" : "minmax(0, 1.25fr) minmax(0, 1fr) 210px auto", gap: "16px", alignItems: "start" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                   <label htmlFor="new-email" style={{ fontSize: "14px", fontWeight: "500", color: "var(--night-indigo)" }}>
                     Email
@@ -279,6 +286,19 @@ export default function AdminUsersPage() {
                     </svg>
                   </div>
                 </div>
+                {v.needsCode && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <label htmlFor="new-code" style={{ fontSize: "14px", fontWeight: "500", color: "var(--night-indigo)" }}>
+                      {v.codeLabel}
+                    </label>
+                    <input id="new-code" type="text" className="a-field" value={v.fCode} onChange={v.setCode} aria-invalid={v.codeBad} aria-describedby="new-code-err" autoComplete="off" style={{ width: "100%", height: "44px", padding: "0 14px", borderRadius: "10px", border: "1px solid var(--edge)", background: "var(--field-white)", fontSize: "15px", color: "var(--night-indigo)" }} />
+                    {v.err.code && (
+                      <p id="new-code-err" className="a-rise" role="alert" style={{ fontSize: "13.5px", lineHeight: "1.4", color: "var(--red-ink)" }}>
+                        {v.err.code}
+                      </p>
+                    )}
+                  </div>
+                )}
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                   <span aria-hidden="true" className="a-hide-sm" style={{ fontSize: "14px", visibility: "hidden" }}>
                     Send

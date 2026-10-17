@@ -15,7 +15,10 @@ export default function AccountSettingsPage() {
   const { user, setUsername, signOut } = useAuth()
   const [s, setState] = useMergeState({ draft: null, save: 'idle', ticks: 0, error: null })
   const staff = user.role !== 'Student'
-  const saved = user.username
+  // the real API has no endpoint that changes the user's own name yet; only the mock does
+  const canEdit = USE_MOCKS
+  // with the real API the name shown is the account's full name; the token's username is the login (the email)
+  const saved = canEdit ? user.username : user.fullName
   const draft = s.draft ?? saved
   const bad = draft.trim() === ''
   const dirty = draft.trim() !== saved
@@ -106,9 +109,9 @@ export default function AccountSettingsPage() {
           </h2>
           <div style={{ display: "flex", flexDirection: "column", maxWidth: "560px" }}>
             <label htmlFor="f-username" style={{ fontSize: "14px", fontWeight: "500" }}>
-              Username
+              {canEdit ? 'Username' : 'Name'}
             </label>
-            <input id="f-username" className="a-field" type="text" autoComplete="nickname" value={v.draft} onChange={v.typed} aria-invalid={v.bad} aria-describedby={v.describedBy} style={{ marginTop: "8px", width: "100%", maxWidth: "440px", height: "48px", padding: "0 14px", borderRadius: "12px", border: "1px solid var(--night-edge)", background: "var(--night-field)", fontSize: "16px", fontWeight: "400", color: "var(--ivory)" }} />
+            <input id="f-username" className="a-field" type="text" autoComplete="nickname" value={v.draft} onChange={v.typed} readOnly={!canEdit} aria-invalid={v.bad} aria-describedby={v.describedBy} style={{ marginTop: "8px", width: "100%", maxWidth: "440px", height: "48px", padding: "0 14px", borderRadius: "12px", border: "1px solid var(--night-edge)", background: "var(--night-field)", fontSize: "16px", fontWeight: "400", color: "var(--ivory)" }} />
             {v.bad && (
               <>
                 <p id="e-username" className="a-rise" style={{ marginTop: "10px", display: "flex", alignItems: "center", gap: "8px", fontSize: "13.5px", lineHeight: "1.4", color: "var(--ember-text)" }}>
@@ -124,10 +127,11 @@ export default function AccountSettingsPage() {
             {v.good && (
               <>
                 <p id="h-username" style={{ marginTop: "10px", fontSize: "13.5px", lineHeight: "1.4", color: "var(--ivory-3)" }}>
-                  Other people can have the same username.
+                  {canEdit ? 'Other people can have the same username.' : 'Your name comes from your AIVES account. Changing it here is not available yet.'}
                 </p>
               </>
             )}
+            {canEdit && (
             <div style={{ marginTop: "28px", display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: "22px", rowGap: "14px" }}>
               <button type="button" className="a-btn a-btn-primary" onClick={v.save} aria-disabled={v.saveOff} style={{ height: "52px", minWidth: "164px", padding: "0 24px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "10px", border: "0", borderRadius: "14px", background: "var(--ivory)", color: "var(--night-indigo)", fontSize: "16px", fontWeight: "500", boxShadow: "0 10px 28px -12px rgba(0,0,0,0.55)" }}>
                 {v.saveLabel}
@@ -164,6 +168,7 @@ export default function AccountSettingsPage() {
                 )}
               </div>
             </div>
+            )}
           </div>
         </section>
         <section aria-labelledby="h-signin" className="a-grid-1-sm a-rise" style={{ animationDelay: "60ms", display: "grid", gridTemplateColumns: "264px minmax(0, 1fr)", columnGap: "72px", rowGap: "12px", padding: "44px 0 40px", borderTop: "1px solid var(--night-line)" }}>

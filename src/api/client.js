@@ -1,11 +1,11 @@
 // Shared HTTP client (FE-PLAT-02).
-// Every service calls request(); with VITE_USE_MOCKS=true the same call is answered
-// by src/mocks/server.js, so switching to the real API is one line in .env.local.
+// Every service calls request(). By default it calls the real API; with VITE_USE_MOCKS=true in .env.local
+// the same call is answered by src/mocks/server.js (kept for screens whose API is not ready, e.g. Feature 3).
 // The bearer token is the Keycloak access token kept by the UserManager (features/auth/oidc.js).
 import { userManager } from '../features/auth/oidc.js'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5080'
-export const USE_MOCKS = import.meta.env.VITE_USE_MOCKS !== 'false'
+export const USE_MOCKS = import.meta.env.VITE_USE_MOCKS === 'true'
 
 // Every API error has one shape: { code, message, traceId, details } (README, section 4).
 export class ApiError extends Error {
@@ -89,7 +89,19 @@ async function send(method, path, { body, query } = {}, token) {
   if (res.status === 204) return null
   const data = await res.json().catch(() => null)
   if (!res.ok) {
-    throw new ApiError(data?.code ? data : { code: 'http_' + res.status, message: 'Something went wrong. Try again.' }, res.status)
+    const errorMsg = data?.message
+      || (data?.errors ? Object.values(data.errors).flat().join(' ') : null)
+      || data?.title
+      || data?.detail
+      || 'Something went wrong, please try again.'
+    throw new ApiError(
+      {
+        code: data?.code ?? ('http_' + res.status),
+        message: errorMsg,
+        details: data?.errors ?? data?.details ?? null,
+      },
+      res.status
+    )
   }
   return data
 }

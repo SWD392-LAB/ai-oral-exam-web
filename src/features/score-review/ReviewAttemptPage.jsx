@@ -362,10 +362,10 @@ export default function ReviewAttemptPage() {
                     </p>
                     {f.isPending && (
                       <div className={f.paneCls} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        <button type="button" className="a-btn a-btn-primary" onClick={f.confirmAi} style={{ height: '52px', border: '0', borderRadius: '14px', background: 'var(--ivory)', color: 'var(--night-indigo)', fontSize: '16px', fontWeight: '500', boxShadow: '0 10px 28px -12px rgba(0,0,0,0.55)' }}>
+                        <button type="button" id="confirm-final-score-btn" className="a-btn a-btn-primary" onClick={f.confirmAi} style={{ height: '52px', border: '0', borderRadius: '14px', background: 'var(--ivory)', color: 'var(--night-indigo)', fontSize: '16px', fontWeight: '500', boxShadow: '0 10px 28px -12px rgba(0,0,0,0.55)' }}>
                           Confirm final score
                         </button>
-                        <button type="button" className="a-btn a-btn-secondary" onClick={f.adjust} style={{ height: '44px', borderRadius: '12px', border: '1px solid var(--night-edge)', background: 'transparent', color: 'var(--ivory)', fontSize: '15px', fontWeight: '500' }}>
+                        <button type="button" id="adjust-final-score-btn" className="a-btn a-btn-secondary" onClick={f.adjust} style={{ height: '44px', borderRadius: '12px', border: '1px solid var(--night-edge)', background: 'transparent', color: 'var(--ivory)', fontSize: '15px', fontWeight: '500' }}>
                           Adjust final score
                         </button>
                       </div>
@@ -392,7 +392,7 @@ export default function ReviewAttemptPage() {
                           <textarea id={f.commentId} rows="4" value={f.comment} onChange={f.onComment} style={{ width: '100%', padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--night-edge)', background: 'var(--night-field)', fontSize: '15px', lineHeight: '1.5', color: 'var(--ivory)', caretColor: 'var(--ivory)', resize: 'vertical', colorScheme: 'dark' }} />
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                          <button type="button" className="a-btn a-btn-primary" onClick={f.confirmDraft} aria-disabled={f.bad} style={{ height: '52px', border: '0', borderRadius: '14px', background: 'var(--ivory)', color: 'var(--night-indigo)', fontSize: '16px', fontWeight: '500', boxShadow: '0 10px 28px -12px rgba(0,0,0,0.55)' }}>
+                          <button type="button" id="confirm-draft-score-btn" className="a-btn a-btn-primary" onClick={f.confirmDraft} aria-disabled={f.bad} style={{ height: '52px', border: '0', borderRadius: '14px', background: 'var(--ivory)', color: 'var(--night-indigo)', fontSize: '16px', fontWeight: '500', boxShadow: '0 10px 28px -12px rgba(0,0,0,0.55)' }}>
                             Confirm final score
                           </button>
                           <button type="button" className="a-btn a-btn-quiet" onClick={f.reset} style={{ alignSelf: 'flex-start', height: '44px', padding: '0 14px', marginLeft: '-14px', border: '0', borderRadius: '10px', background: 'transparent', color: 'var(--ivory-2)', fontSize: '15px', fontWeight: '500' }}>

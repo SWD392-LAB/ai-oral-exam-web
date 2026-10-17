@@ -8,7 +8,7 @@ Frontend for **AIVES – AI-powered Viva Exam System** (SWD392). One React web a
 
 Backend repo: `ai-oral-exam-api`. Design documents: `docs` repo.
 
-> All screens of the approved wireframes are built. Sign-in is done by Keycloak (see **2.1**). Until the API is ready, everything else runs on a mock API, so the app works without the backend.
+> All screens of the approved wireframes are built. Sign-in is done by Keycloak in every mode (see **2.1** for how it works and **2.2** for the settings). Everything else calls the real API (`ai-oral-exam-api`) by default. A mock API (`VITE_USE_MOCKS=true`) is still available for screens whose API is not ready yet (the student exam screens, Feature 3).
 
 ---
 
@@ -18,7 +18,7 @@ Backend repo: `ai-oral-exam-api`. Design documents: `docs` repo.
 |---|---|---|
 | Node.js | 20 LTS or later | `node --version` |
 | Keycloak (sign-in), from the backend repo `ai-oral-exam-api`, branch `refactor/database-schemas`: `docker compose up -d keycloak` | realm `aives` at `http://localhost:8080/realms/aives` | open http://localhost:8080/realms/aives/.well-known/openid-configuration |
-| Backend `ai-oral-exam-api` (only with `VITE_USE_MOCKS=false`) | running at `http://localhost:5080` | open http://localhost:5080/health |
+| Backend `ai-oral-exam-api` (needed by default; not needed with `VITE_USE_MOCKS=true`) | running at `http://localhost:5080` | open http://localhost:5080/health |
 
 ## 2. Running
 
@@ -27,11 +27,11 @@ npm install
 npm run dev        # http://localhost:5173
 ```
 
-### 2.1 With the mock API (default)
+### 2.1 With the mock API (optional)
 
 **Sign-in is always Keycloak** (OpenID Connect, Authorization Code flow with PKCE): the **Sign in** button opens Keycloak's own page, which also has *Forgot password*. There is no registration screen; self-registration is disabled in the realm. Start Keycloak first (see **1**). The dev server **must run on port 5173**: the realm only allows redirects to `http://localhost:5173/*` (`strictPort` is on, so Vite stops instead of picking another port).
 
-Everything except sign-in is answered by `src/mocks/` when `VITE_USE_MOCKS` is `true` (the default), with sample data kept in the browser's memory: **reloading the page (F5) resets that data**, so click through the app instead of reloading while you test a flow. The Keycloak session itself survives a reload (it lives in the browser tab's `sessionStorage`).
+With `VITE_USE_MOCKS=true` in `.env.local`, everything except sign-in is answered by `src/mocks/`, with sample data kept in the browser's memory: **reloading the page (F5) resets that data**, so click through the app instead of reloading while you test a flow. The Keycloak session itself survives a reload (it lives in the browser tab's `sessionStorage`).
 
 **Demo users** (all use the password `Password@123`; the user name is the email):
 
@@ -62,9 +62,9 @@ Things to know while testing:
 
 The role comes from the `role` claim of the access token (string or array). A user with several roles gets the highest one: Administrator, then Lecturer, then Student.
 
-### 2.2 With the real API (Feature 6 & Feature 7 Read-only)
+### 2.2 With the real API (default)
 
-Create a `.env.local` file in the project root (you can copy `.env.example`):
+This is the default: `VITE_USE_MOCKS` is `false` unless you set it to `true`, and every setting below has this value as its default, so `.env.local` is only needed to change one. To set them explicitly, create a `.env.local` file in the project root (you can copy `.env.example`):
 
 ```env
 VITE_API_BASE_URL=http://localhost:5080
