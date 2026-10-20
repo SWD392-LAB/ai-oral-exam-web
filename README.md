@@ -84,6 +84,7 @@ Ensure Keycloak (`http://localhost:8080`) and Backend API (`http://localhost:508
    - **Exam Sessions & Courses (Feature 7):** Open `/lecturer/sessions` to view the course dropdown (`SWD392`) and session list.
    - **Class Results & CSV Export (Feature 6):** Open `/lecturer/sessions/33333333-0000-0000-0000-000000000001/results` to view student grades. Click *Export grade sheet* to download the live UTF-8 BOM CSV.
    - **Class Statistics (Feature 6):** Open `/lecturer/statistics?session=33333333-0000-0000-0000-000000000001` to view the 10-bin score distribution chart and question difficulty analysis.
+   - **Review & Confirm Score (Feature 6):** Open `/lecturer/attempts/66666666-0000-0000-0000-000000000008/review` to inspect student answers, adjust suggestions, and confirm the final score on dynamic exam scales.
 
 2. **Student with Finalized Score (`chau.lm@aives.edu.vn` / `Password@123`):**
    - **Student Report (Feature 6):** Open `/student/attempts/66666666-0000-0000-0000-000000000001/report` to view confirmed score, lecturer comments, full question-by-question dialogue turns, and audio player waveform.
@@ -91,7 +92,7 @@ Ensure Keycloak (`http://localhost:8080`) and Backend API (`http://localhost:508
 3. **Student with Pending Review (`dung.pq@aives.edu.vn` / `Password@123`):**
    - **Pending Report (Feature 6):** Open `/student/attempts/66666666-0000-0000-0000-000000000002/report` to observe the graceful "Waiting for review" banner and checklist milestones.
 
-> **Note on Unmerged Features:** Backend CRUD endpoints (creating/editing exam sessions, rubrics, participants, publish, and Admin CRUD) are currently on unmerged backend branches. The UI will display empty states or retain defaults when accessing those features until merged.
+> **Note on Feature 3 (Student Exam Room):** The student home page (`/student`), lobby, and live oral interview room belong to Feature 3 (AI Viva Interview), which is scheduled after Phase 1 and not yet available on the real backend API. To test the student exam room and speech simulation, set `VITE_USE_MOCKS=true` in `.env.local`.
 
 ## 3. Project structure
 
