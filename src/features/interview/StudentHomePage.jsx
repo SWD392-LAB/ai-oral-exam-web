@@ -278,7 +278,7 @@ export default function StudentHomePage() {
                       <span style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                         <span className="a-num" style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
                           <span style={{ fontSize: '56px', fontWeight: '200', lineHeight: '1', letterSpacing: '-0.02em' }}>{formatScore(a.finalScore)}</span>
-                          <span style={{ fontSize: '18px', fontWeight: '300', color: 'var(--ivory-2)' }}>/ 10</span>
+                          <span style={{ fontSize: '18px', fontWeight: '300', color: 'var(--ivory-2)' }}>/ {formatScore(a.maxScore ?? x.maxScore ?? 10)}</span>
                         </span>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '9px', fontSize: '14.5px', color: 'var(--ivory)' }}>
                           <Disc color="var(--ivory)" full />

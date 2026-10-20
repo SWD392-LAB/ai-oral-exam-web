@@ -126,6 +126,7 @@ export default function StudentReportPage() {
     spinCls: s.check === 'checking' ? 'r-spin' : '',
     checkAgain,
     finalText: confirmed ? formatScore(r.review.finalScore) : '',
+    maxTotalText: confirmed ? formatScore(r?.maxScore ?? 10) : '10',
     reviewer: r?.review?.reviewerName ?? 'your lecturer',
     confirmedOn: r?.review?.confirmedAt ? formatDay(r.review.confirmedAt) : '',
     lecturerComment: r?.review?.comment ?? '',
@@ -176,7 +177,7 @@ export default function StudentReportPage() {
                     {v.finalText}
                   </span>
                   <span style={{ fontSize: "18px", fontWeight: "300", color: "var(--ivory-2)" }}>
-                    / 10
+                    / {v.maxTotalText}
                   </span>
                 </p>
                 <p style={{ marginTop: "18px", fontSize: "15px", color: "var(--ivory-2)" }}>

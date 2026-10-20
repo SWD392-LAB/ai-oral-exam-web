@@ -35,6 +35,8 @@ function wave(seed) {
 }
 const WAVE = { vi: wave(1.3), en: wave(4.1) }
 const EMPTY = { stt: '', tts: '', llm: '' }
+// 'saved' when the API already holds a key for that service, otherwise the page asks for one
+const keysOf = (cfg) => Object.fromEntries(PROV.map((p) => [p.k, cfg.providers[p.k].key === 'saved' ? 'saved' : 'replacing']))
 const invalid = (val) => { const t = (val || '').trim(); return t !== '' && !/^https:\/\/[^\s/]+\.[^\s]+/.test(t) }
 const savedLineOf = (cfg) => {
   if (!cfg?.savedAt) return ''
@@ -50,7 +52,7 @@ export default function AdminAIPage() {
   const { later } = useTimeouts()
   const [s, put] = useMergeState({ lang: null, keys: { stt: 'saved', tts: 'saved', llm: 'saved' }, drafts: { ...EMPTY }, eps: null, touched: {}, tried: false, saving: false, savedNow: false, okFlash: false, justKeys: {}, playing: false, pos: 0, langFlip: false, error: null })
   useEffect(() => {
-    if (cfg && s.lang === null) put({ lang: cfg.language, eps: { stt: cfg.providers.stt.endpoint, tts: cfg.providers.tts.endpoint, llm: cfg.providers.llm.endpoint } })
+    if (cfg && s.lang === null) put({ lang: cfg.language, keys: keysOf(cfg), eps: { stt: cfg.providers.stt.endpoint, tts: cfg.providers.tts.endpoint, llm: cfg.providers.llm.endpoint } })
   }, [cfg, s.lang, put])
   // the sample bars move with the reading; a real voice plays when the browser has one
   useEffect(() => {
@@ -104,13 +106,13 @@ export default function AdminAIPage() {
       const justKeys = {}
       PROV.forEach((p) => { if (s.keys[p.k] === 'replacing' && s.drafts[p.k].trim()) justKeys[p.k] = true })
       setData(next)
-      put({ saving: false, keys: { stt: 'saved', tts: 'saved', llm: 'saved' }, drafts: { ...EMPTY }, justKeys, savedNow: true, okFlash: true, touched: {} })
+      put({ saving: false, keys: keysOf(next), drafts: { ...EMPTY }, justKeys, savedNow: true, okFlash: true, touched: {} })
       later(() => put({ okFlash: false }), 1800)
     } catch (e) {
       put({ saving: false, error: e.message })
     }
   }
-  const discard = () => put((p) => ({ lang: savedLang, eps: { ...savedEps }, keys: { stt: 'saved', tts: 'saved', llm: 'saved' }, drafts: { ...EMPTY }, touched: {}, tried: false, langFlip: p.lang !== savedLang ? !p.langFlip : p.langFlip }))
+  const discard = () => put((p) => ({ lang: savedLang, eps: { ...savedEps }, keys: keysOf(cfg), drafts: { ...EMPTY }, touched: {}, tried: false, langFlip: p.lang !== savedLang ? !p.langFlip : p.langFlip }))
   const bars = WAVE[s.lang].map((h, i) => ({ h: `${h}px`, bg: s.playing && i <= s.pos ? 'var(--lantern-gold)' : 'rgba(246,241,231,0.28)' }))
   const secs = Math.min(6, Math.floor(s.pos * 0.15))
   const langs = ['vi', 'en'].map((code) => {
@@ -133,7 +135,7 @@ export default function AdminAIPage() {
       idProv: `${p.k}-prov`, idKey: `${p.k}-key`, idKeyLbl: `${p.k}-key-l`, idEp: `${p.k}-ep`, idErr: `${p.k}-ep-err`,
       keySaved: s.keys[p.k] === 'saved', keyReplacing: s.keys[p.k] === 'replacing',
       justKey: s.keys[p.k] === 'saved' && !!s.justKeys[p.k],
-      draft: s.drafts[p.k], keepLabel: `Keep the saved ${p.change} key`,
+      draft: s.drafts[p.k], keepLabel: `Keep the saved ${p.change} key`, canKeep: cfg.providers[p.k].key === 'saved',
       onDraft: (e) => put((q) => ({ drafts: { ...q.drafts, [p.k]: e.target.value }, savedNow: false })),
       replace: () => put((q) => ({ keys: { ...q.keys, [p.k]: 'replacing' }, justKeys: { ...q.justKeys, [p.k]: false } })),
       keep: () => put((q) => ({ keys: { ...q.keys, [p.k]: 'saved' }, drafts: { ...q.drafts, [p.k]: '' } })),
@@ -401,11 +403,13 @@ export default function AdminAIPage() {
                           </label>
                           <div className="ai-open" style={{ display: "flex", gap: "6px" }}>
                             <input id={p.idKey} type="password" className="a-field" autoComplete="off" value={p.draft} onChange={p.onDraft} placeholder="Paste the new key" style={{ flex: "1", minWidth: "0", height: "44px", padding: "0 14px", borderRadius: "10px", border: "1px solid var(--edge)", background: "var(--field-white)", fontSize: "15px", color: "var(--night-indigo)" }} />
+                            {p.canKeep && (
                             <button type="button" className="a-btn a-btn-quiet" onClick={p.keep} aria-label={p.keepLabel} style={{ flex: "none", width: "44px", height: "44px", padding: "0", border: "0", borderRadius: "10px", background: "transparent", color: "var(--ink-2)", display: "grid", placeItems: "center" }}>
                               <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style={{ fill: "none", stroke: "currentColor", strokeWidth: "1.75", strokeLinecap: "round" }}>
                                 <path d="M6 6l12 12M18 6 6 18" />
                               </svg>
                             </button>
+                            )}
                           </div>
                         </>
                       )}

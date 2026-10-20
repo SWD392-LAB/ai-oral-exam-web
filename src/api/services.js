@@ -14,22 +14,29 @@ async function readAiSettings() {
   const res = await api.get('/api/admin/ai-settings')
   const list = Array.isArray(res) ? res : []
   const providers = Object.fromEntries(Object.entries(AI_TYPES).map(([k, type]) => [
-    k, { endpoint: activeAiConfig(list, type)?.endpointUrl ?? '', key: 'saved' },
+    k, { endpoint: activeAiConfig(list, type)?.endpointUrl ?? '', key: activeAiConfig(list, type)?.hasApiKey ? 'saved' : 'none' },
   ]))
   // one language for the page: the one of the active speech-to-text configuration
   const language = AI_LANGUAGE_FROM_API[(activeAiConfig(list, 'STT') ?? activeAiConfig(list, 'LLM'))?.language] ?? 'vi'
   return { language, providers }
 }
 
-// Audit log: the API gives action, target entity and who; the page groups entries by category
-const humanize = (name = '') => name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (c) => c.toUpperCase())
+// Audit log: the API gives action, target entity, a description and who; the page groups entries by category.
+// Older rows use other names (CreateSession, AIServiceConfig, ...), so entity and action are matched loosely.
+const ENTITY_NAMES = {
+  user: 'User', course: 'Course', examsession: 'Exam session', question: 'Question', rubric: 'Rubric',
+  aiserviceconfig: 'AI service settings', interviewattempt: 'Interview attempt',
+}
+const humanize = (name = '') => name.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2').replace(/^./, (c) => c.toUpperCase())
+const entityName = (entity = '') => ENTITY_NAMES[entity.toLowerCase()] ?? humanize(entity)
 function auditCategory(action = '', entity = '') {
-  if (entity === 'User') return /Role/i.test(action) ? 'role' : /Deactivat/i.test(action) ? 'deact' : /Create|Import/i.test(action) ? 'created' : 'user'
-  if (entity === 'Course') return /Lecturer/i.test(action) ? 'assign' : 'course'
-  if (entity === 'AIServiceConfig') return 'ai'
+  const e = entity.toLowerCase()
+  if (e === 'user') return /Role/i.test(action) ? 'role' : /Deactivat/i.test(action) ? 'deact' : /Create|Import/i.test(action) ? 'created' : 'user'
+  if (e === 'course') return /Lecturer/i.test(action) ? 'assign' : 'course'
+  if (e === 'aiserviceconfig') return 'ai'
   return 'other'
 }
-const AUDIT_KIND = { User: 'user', Course: 'course', AIServiceConfig: 'ai' }
+const AUDIT_KIND = { user: 'user', course: 'course', aiserviceconfig: 'ai' }
 
 // System health check
 export const systemApi = {
@@ -91,6 +98,7 @@ export const scoreReviewApi = {
         timeLimitSeconds: 60,
       },
       aiTotal: r.suggestedTotalScore ?? 0,
+      maxScore: r.maxTotalScore ?? (Array.isArray(r.questions) ? r.questions.reduce((sum, q) => sum + (q.maxScore ?? 0), 0) : 10),
       review: finalScore != null ? {
         finalScore,
         comment,
@@ -152,6 +160,7 @@ export const reportingApi = {
       startedAt: r.startedAt,
       endedAt: r.completedAt ?? r.startedAt,
       finalScore: r.finalScore,
+      maxScore: r.maxTotalScore ?? (Array.isArray(r.questions) ? r.questions.reduce((sum, q) => sum + (q.maxScore ?? 0), 0) : 10),
       aiTotal: r.suggestedTotalScore,
       review: {
         finalScore: r.finalScore ?? 0,
@@ -304,10 +313,10 @@ export const examConfigApi = {
         status: phase,
         questionCount: qCount,
         students: sCount,
-        // counts come from the API (attempts in PendingReview or Finalized / in PendingReview)
+        // counts come from the API (attempts in PendingReview or Finalized / in PendingReview / in InProgress)
         taken: s.takenCount ?? 0,
         toReview: s.toReviewCount ?? 0,
-        answering: 0,
+        answering: s.inProgressCount ?? 0,
         classCode: s.classCode ?? null,
       }
     })
@@ -568,7 +577,8 @@ export const adminApi = {
     const list = Array.isArray(res) ? res : []
     return await Promise.all(
       list.map(async (c) => {
-        const lects = await api.get(`/api/courses/${enc(c.id)}/lecturers`).catch(() => [])
+        // the admin list carries the lecturers; older API versions need one more call per course
+        const lects = Array.isArray(c.lecturers) ? c.lecturers : await api.get(`/api/courses/${enc(c.id)}/lecturers`).catch(() => [])
         const lecturerIds = (Array.isArray(lects) ? lects : []).map((l) => l.id ?? l.lecturerId)
         return {
           id: c.id,
@@ -638,7 +648,7 @@ export const adminApi = {
   aiSettings: () => readAiSettings(),
 
   // The API keeps one active configuration per service type (STT, TTS, LLM), each with its own language,
-  // and saves one type per call. The page shows one language and one endpoint per type.
+  // and saves one type per call; a blank key keeps the stored one. The page shows one language and one endpoint per type.
   saveAiSettings: async (body) => {
     const list = await api.get('/api/admin/ai-settings')
     const language = AI_LANGUAGE_TO_API[body.language]
@@ -653,15 +663,15 @@ export const adminApi = {
         return { serviceType, current, endpoint, key, changed }
       })
       .filter((j) => j.changed)
-    // the API checks the key on every save and never returns it, so a change needs a new key
-    const missing = jobs.filter((j) => !j.key).map((j) => j.serviceType)
-    if (missing.length) throw new Error(`Enter a new API key for ${missing.join(', ')}: the server asks for the key every time a provider is saved.`)
+    // a blank key keeps the stored one; a service with no configuration yet needs a key
+    const missing = jobs.filter((j) => !j.current && !j.key).map((j) => j.serviceType)
+    if (missing.length) throw new Error(`Enter an API key for ${missing.join(', ')}.`)
     for (const j of jobs) {
       await api.put('/api/admin/ai-settings', {
         serviceType: j.serviceType,
         providerName: j.current?.providerName ?? j.serviceType,
         endpointUrl: j.endpoint,
-        apiKey: j.key,
+        apiKey: j.key || null,
         language,
         isActive: true,
       })
@@ -678,9 +688,9 @@ export const adminApi = {
       at: e.createdAt,
       actor: e.userName ?? e.email ?? 'System',
       action: humanize(e.action),
-      details: '',
-      target: humanize(e.targetEntity),
-      kind: AUDIT_KIND[e.targetEntity] ?? 'other',
+      details: e.description ?? '',
+      target: entityName(e.targetEntity),
+      kind: AUDIT_KIND[(e.targetEntity ?? '').toLowerCase()] ?? 'other',
       cat: auditCategory(e.action, e.targetEntity),
     }))
   },

@@ -13,12 +13,12 @@ import './ReviewAttempt.css'
 const TURN_MS = 600
 const TICK = 0.125
 
-// score typed by the lecturer: 0..10 in steps of 0.25
-const parseScore = (str) => {
+// score typed by the lecturer: 0..max in steps of 0.25
+const parseScore = (str, max = 10) => {
   const t = String(str ?? '').trim()
-  if (!/^\d{1,2}(\.\d{1,2})?$/.test(t)) return null
+  if (!/^\d{1,3}(\.\d{1,2})?$/.test(t)) return null
   const v = parseFloat(t)
-  if (v < 0 || v > 10 || Math.abs(v * 4 - Math.round(v * 4)) > 1e-9) return null
+  if (v < 0 || v > max || Math.abs(v * 4 - Math.round(v * 4)) > 1e-9) return null
   return v
 }
 
@@ -110,9 +110,11 @@ export default function ReviewAttemptPage() {
     const pre = live ? '' : 'out-'
     const view = v.view
     const ok = view === 'confirmed'
+    const maxScore = d.maxScore ?? (Array.isArray(d.questions) ? d.questions.reduce((sum, q) => sum + (q.maxScore ?? 0), 0) : 10)
+    const maxTotalText = formatScore(maxScore)
     const aiTotal = d.aiTotal
     const draft = view === 'adjusting' ? v.draft : formatScore(aiTotal)
-    const dv = parseScore(draft)
+    const dv = parseScore(draft, maxScore)
     const bad = view === 'adjusting' && dv === null
     let score = aiTotal
     if (view === 'adjusting') score = dv
@@ -161,7 +163,7 @@ export default function ReviewAttemptPage() {
       rise: kind === 'rest' && !s.turned ? 'a-rise' : '',
       name: d.student.fullName, code: d.student.studentCode, meta: metaOf(d),
       back: `${d.session.title}${d.session.classCode ? ` (${d.session.classCode})` : ''}`, sessionId: d.session.id,
-      aiText, questions,
+      aiText, maxScore, maxTotalText, questions,
       parts: d.questions.map((q, qi) => ({ label: `Q${qi + 1}`, v: formatScore(q.ai.score) })),
       finalId: pre + 'final-h', scoreId: pre + 'final-score', errId: pre + 'final-score-err', commentId: pre + 'final-comment',
       isPending: view === 'pending', isAdjusting: view === 'adjusting', isConfirmed: ok, notConfirmed: !ok,
@@ -330,7 +332,7 @@ export default function ReviewAttemptPage() {
                     </div>
                     <p className="a-num" style={{ display: 'flex', alignItems: 'baseline', gap: '8px', color: 'var(--gold-ink)' }}>
                       <span style={{ fontSize: '56px', fontWeight: '200', lineHeight: '1', letterSpacing: '-0.02em' }}>{f.aiText}</span>
-                      <span style={{ fontSize: '18px', fontWeight: '300' }}>/ 10</span>
+                      <span style={{ fontSize: '18px', fontWeight: '300' }}>/ {f.maxTotalText}</span>
                     </p>
                     <ul className="a-num" style={{ display: 'grid', gridTemplateColumns: `repeat(${f.parts.length}, minmax(0, 1fr))`, gap: '8px', paddingTop: '14px', borderTop: '1px dashed rgba(168,126,0,0.45)', fontSize: '13px', color: 'var(--ink-2)' }}>
                       {f.parts.map((p) => (
@@ -358,7 +360,7 @@ export default function ReviewAttemptPage() {
                     </div>
                     <p className="a-num" aria-live="polite" style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
                       <span key={f.scoreText + f.scoreCls} className={`a-score-xl ${f.scoreCls}`} style={{ fontSize: '72px', fontWeight: '200', lineHeight: '0.95', letterSpacing: '-0.02em' }}>{f.scoreText}</span>
-                      <span style={{ fontSize: '18px', fontWeight: '300', color: 'var(--ivory-2)' }}>/ 10</span>
+                      <span style={{ fontSize: '18px', fontWeight: '300', color: 'var(--ivory-2)' }}>/ {f.maxTotalText}</span>
                     </p>
                     {f.isPending && (
                       <div className={f.paneCls} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -374,8 +376,8 @@ export default function ReviewAttemptPage() {
                       <div className="a-rise" style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                         <p className="a-num" style={{ marginTop: '-8px', fontSize: '14px', color: 'var(--ivory-2)' }}>{f.deltaText}</p>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          <label htmlFor={f.scoreId} style={{ fontSize: '14px', fontWeight: '500' }}>Final score (0 to 10)</label>
-                          <input id={f.scoreId} type="number" min="0" max="10" step="0.25" inputMode="decimal" value={f.draft} onChange={f.onDraft} aria-invalid={f.bad} aria-describedby={f.errId} className="a-num" style={{ width: '160px', height: '48px', padding: '0 14px', borderRadius: '12px', border: `1px solid ${f.inputEdge}`, background: 'var(--night-field)', fontSize: '18px', fontWeight: '400', color: 'var(--ivory)', caretColor: 'var(--ivory)', colorScheme: 'dark' }} />
+                          <label htmlFor={f.scoreId} style={{ fontSize: '14px', fontWeight: '500' }}>Final score (0 to {f.maxTotalText})</label>
+                          <input id={f.scoreId} type="number" min="0" max={f.maxScore} step="0.25" inputMode="decimal" value={f.draft} onChange={f.onDraft} aria-invalid={f.bad} aria-describedby={f.errId} className="a-num" style={{ width: '160px', height: '48px', padding: '0 14px', borderRadius: '12px', border: `1px solid ${f.inputEdge}`, background: 'var(--night-field)', fontSize: '18px', fontWeight: '400', color: 'var(--ivory)', caretColor: 'var(--ivory)', colorScheme: 'dark' }} />
                           {f.bad && (
                             <p id={f.errId} className="a-rise" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13.5px', color: 'var(--ember-text)' }}>
                               <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style={{ flex: 'none', fill: 'none', stroke: 'currentColor', strokeWidth: '1.75', strokeLinecap: 'round', strokeLinejoin: 'round' }}>
@@ -383,7 +385,7 @@ export default function ReviewAttemptPage() {
                                 <path d="M12 10v4.5" />
                                 <path d="M12 17.2v.01" />
                               </svg>
-                              Enter a score from 0 to 10, in steps of 0.25.
+                              Enter a score from 0 to {f.maxTotalText}, in steps of 0.25.
                             </p>
                           )}
                         </div>
