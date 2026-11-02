@@ -546,8 +546,13 @@ export const adminApi = {
     }
   },
 
-  changeRole: async (id, role) => {
-    const res = await api.patch(`/api/admin/users/${enc(id)}/role`, { role })
+  // A student needs studentCode and a lecturer lecturerCode, otherwise the API answers 400.
+  changeRole: async (id, role, code) => {
+    const res = await api.patch(`/api/admin/users/${enc(id)}/role`, {
+      role,
+      studentCode: role === 'Student' ? code : null,
+      lecturerCode: role === 'Lecturer' ? code : null,
+    })
     return {
       id,
       role: res?.role ?? role,

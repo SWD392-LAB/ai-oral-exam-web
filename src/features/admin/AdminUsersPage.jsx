@@ -23,7 +23,7 @@ export default function AdminUsersPage() {
   const { later, clear } = useTimeouts()
   const [m, set] = useMergeState({
     open: false, closing: false, fEmail: '', fName: '', fRole: 'Lecturer', fCode: '', err: {}, sending: false, sent: false, sentTo: '',
-    editing: null, editVal: '', confirm: null, confirmClosing: false, busy: false,
+    editing: null, editVal: '', editCode: '', roleErr: '', confirm: null, confirmClosing: false, busy: false,
     just: null, arrive: null, totalFlip: 0, fr: 'all', fs: 'all', q: '', flip: 0, error: null,
   })
   const all = (users ?? []).slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
@@ -88,14 +88,22 @@ export default function AdminUsersPage() {
       editing, notEditing: !editing, roleCellCls: editing ? 'au-editing' : '',
       editVal: editing ? m.editVal : u.role,
       editLabel: `New role for ${u.fullName}`,
-      setEdit: (e) => set({ editVal: e.target.value }),
+      setEdit: (e) => set({ editVal: e.target.value, editCode: '', roleErr: '' }),
+      // the API needs a student code for a student and a lecturer code for a lecturer
+      needsCode: editing && m.editVal !== 'Administrator' && m.editVal !== u.role,
+      codeLabel: `${m.editVal === 'Student' ? 'Student' : 'Lecturer'} code for ${u.fullName}`,
+      codePlaceholder: `${m.editVal === 'Student' ? 'Student' : 'Lecturer'} code`,
+      editCode: m.editCode, setCode: (e) => set({ editCode: e.target.value, roleErr: '' }),
+      roleErr: editing ? m.roleErr : '',
       saveOff: editing && m.editVal === u.role ? 'true' : 'false',
       save: async () => {
         if (m.editVal === u.role) return
-        try { replace(await adminApi.changeRole(id, m.editVal)); set({ editing: null, just: { id, f: 'role' }, arrive: null }) } catch (e) { set({ error: e.message }) }
+        const code = m.editCode.trim()
+        if (m.editVal !== 'Administrator' && !code) { set({ roleErr: `Enter the ${m.editVal === 'Student' ? 'student' : 'lecturer'} code.` }); return }
+        try { replace(await adminApi.changeRole(id, m.editVal, code)); set({ editing: null, roleErr: '', just: { id, f: 'role' }, arrive: null }) } catch (e) { set({ roleErr: e.message }) }
       },
       cancel: () => set({ editing: null }),
-      edit: () => { if (m.editing === id) { set({ editing: null }); return } set({ editing: id, editVal: u.role, confirm: m.confirm === id ? null : m.confirm }) },
+      edit: () => { if (m.editing === id) { set({ editing: null }); return } set({ editing: id, editVal: u.role, editCode: '', roleErr: '', confirm: m.confirm === id ? null : m.confirm }) },
       isActive: !off && !pending, isOff: off, isPending: pending,
       status: statusOf(u),
       statusInk: off ? 'var(--ink-3)' : pending ? 'var(--ink-2)' : 'var(--night-indigo)',
@@ -493,12 +501,20 @@ export default function AdminUsersPage() {
                               <path d="m6 9 6 6 6-6" />
                             </svg>
                           </div>
+                          {r.needsCode && (
+                            <input type="text" className="a-field" aria-label={r.codeLabel} placeholder={r.codePlaceholder} value={r.editCode} onChange={r.setCode} autoComplete="off" style={{ width: "150px", height: "36px", padding: "0 12px", borderRadius: "10px", border: "1px solid var(--night-indigo)", background: "var(--field-white)", fontSize: "14.5px", color: "var(--night-indigo)" }} />
+                          )}
                           <button type="button" className="a-btn a-btn-primary" aria-disabled={r.saveOff} onClick={r.save} style={{ height: "36px", padding: "0 14px", border: "0", borderRadius: "10px", background: "var(--night-indigo)", color: "var(--ivory)", fontSize: "14px", fontWeight: "500", boxShadow: "0 8px 18px -10px rgba(15,22,48,0.55)" }}>
                             Save role
                           </button>
                           <button type="button" className="a-btn a-btn-quiet" onClick={r.cancel} style={{ height: "36px", padding: "0 10px", border: "0", borderRadius: "10px", background: "transparent", color: "var(--ink-2)", fontSize: "14px", fontWeight: "500" }}>
                             Cancel
                           </button>
+                          {r.roleErr && (
+                            <div role="alert" style={{ flexBasis: "100%", fontSize: "12.5px", color: "var(--ink-2)" }}>
+                              {r.roleErr}
+                            </div>
+                          )}
                         </div>
                         <span className={r.roleCls} style={{ display: r.roleDisplay }}>
                           {r.role}
