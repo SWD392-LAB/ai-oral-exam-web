@@ -37,7 +37,7 @@ export default function SessionStudentsPage() {
   const tick = (f) => (f === null ? '' : f ? 'a-tick-a' : 'a-tick-b')
   const draft = d.status === 'Draft'
   const q = s.q.trim().toLowerCase()
-  const people = d.participants
+  const people = d.participants ?? []
   const n = people.length
   const matches = people.filter((p) => !q || p.fullName.toLowerCase().includes(q) || (p.studentCode ?? '').toLowerCase().includes(q) || p.email.toLowerCase().includes(q))
   const visible = q || s.showAll ? matches : matches.slice(0, FIRST)
@@ -51,10 +51,12 @@ export default function SessionStudentsPage() {
   else if (s.showAll || n <= FIRST) { countPre = 'Showing all '; countN = String(n); countPost = '' }
   else { countPre = 'Showing '; countN = String(FIRST); countPost = ` of ${n}` }
 
-  const check = d.publishCheck
-  const c1 = check.hasQuestion, c2 = check.hasQuestion && check.missingRubrics.length === 0, c3 = check.hasStudent
+  const check = d.publishCheck ?? {}
+  const c1 = Boolean(check.hasQuestion ?? (d.questions?.length > 0))
+  const c2 = Boolean(check.missingRubrics ? check.missingRubrics.length === 0 : true)
+  const c3 = Boolean(check.hasStudent ?? (people.length > 0))
   const met = [c1, c2, c3].filter(Boolean).length
-  const canPublish = met === 3 && check.hasWindow
+  const canPublish = met === 3 && (check.hasWindow ?? Boolean(d.startAt && d.endAt))
   const missing = []
   if (!c1) missing.push('Import the question list in step 1.')
   if (c1 && !c2) missing.push('Write a rubric for every question in step 1.')
@@ -127,8 +129,8 @@ export default function SessionStudentsPage() {
     title: `${d.title || 'Untitled session'}${d.classCode ? ` (${d.classCode})` : ''}`,
     courseLine: `${d.courseCode} · ${d.courseName}`,
     when: formatWindow(d.startAt, d.endAt),
-    n, skipped: d.skippedRows, nSkipped: d.skippedRows.length,
-    met, c1, c2, c3, qCount: d.questions.length, withRubric: d.questions.length - check.missingRubrics.length,
+    n, skipped: d.skippedRows ?? [], nSkipped: d.skippedRows?.length ?? 0,
+    met, c1, c2, c3, qCount: d.questions?.length ?? 0, withRubric: (d.questions?.length ?? 0) - (check.missingRubrics?.length ?? 0),
     canPublish, missingText: missing.join(' '), nudged: s.nudge > 0, nudgeTextCls: s.nudge % 2 ? 'a-tick-a' : 'a-tick-b',
     windowLong: d.startAt ? `${day} between ${formatTime(d.startAt)} and ${formatTime(d.endAt)}` : 'the time window',
     opensOn: day, opensAt: d.startAt ? formatTime(d.startAt) : '–', closesAt: d.endAt ? formatTime(d.endAt) : '',

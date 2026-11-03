@@ -23,6 +23,7 @@ function SignOut({ color }) {
 
 const LECTURER_NAV = [
   ['sessions', paths.sessions, 'Exam sessions', 'Sessions'],
+  ['questionBank', paths.questionBank, 'Question bank', 'Bank'],
   ['results', paths.results, 'Results and review', 'Results'],
   ['statistics', paths.statistics, 'Class statistics', 'Statistics'],
   ['account', paths.account, 'Account settings', 'Account'],

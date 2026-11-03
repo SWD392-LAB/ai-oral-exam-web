@@ -70,8 +70,8 @@ export default function ExamLobbyPage() {
     o: !sample.playing || i <= sample.idx ? 1 : 0.5,
   }))
 
-  const open = session?.phase === 'Open now'
-  const taken = !!session?.attempt
+  const open = session?.phase === 'Open now' || session?.isOpenNow === true
+  const taken = !!session?.attempt && session?.attempt.status !== 'InProgress' && session?.participantStatus === 'Completed'
   const canStart = heard && open && !taken && !starting
   const start = async () => {
     if (!canStart) return
@@ -79,7 +79,7 @@ export default function ExamLobbyPage() {
     setStartError(null)
     try {
       const state = await interviewApi.start(sessionId)
-      navigate(paths.attempt(state.attemptId), { replace: true })
+      navigate(paths.attempt(state.attemptId || state.id), { replace: true })
     } catch (err) {
       setStartError(err.message)
       setStarting(false)

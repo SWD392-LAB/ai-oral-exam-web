@@ -53,14 +53,143 @@ export const accountApi = {
   changeUsername: (username) => api.patch('/api/account', { username }),
 }
 
-// AI Viva Interview (F3)
+export const rubricApi = {
+  getPlatformRubric: async () => api.get('/api/platform-rubric'),
+}
+
+// Question Bank & Attach (Feature 1 & Phase 2 Integration)
+export const questionBankApi = {
+  list: (courseId, status) => api.get(`/api/courses/${enc(courseId)}/question-bank${status ? `?status=${enc(status)}` : ''}`),
+  get: (courseId, itemId) => api.get(`/api/courses/${enc(courseId)}/question-bank/${enc(itemId)}`),
+  create: (courseId, { topic, bloom, content }) => api.post(`/api/courses/${enc(courseId)}/question-bank`, { topic, bloom, content }),
+  updateDraft: (courseId, itemId, { topic, bloom, content }) => api.put(`/api/courses/${enc(courseId)}/question-bank/${enc(itemId)}`, { topic, bloom, content }),
+  approve: (courseId, itemId) => api.post(`/api/courses/${enc(courseId)}/question-bank/${enc(itemId)}/approve`),
+  reject: (courseId, itemId) => api.post(`/api/courses/${enc(courseId)}/question-bank/${enc(itemId)}/reject`),
+  attachToSession: (sessionId, itemIds) => api.post(`/api/exam-sessions/${enc(sessionId)}/questions/from-bank`, { itemIds }),
+}
+
+// Course Materials (Feature 1 Complete - Phase 3)
+export const courseMaterialsApi = {
+  list: (courseId) => api.get(`/api/courses/${enc(courseId)}/materials`),
+  upload: (courseId, formData) => api.postFormData(`/api/courses/${enc(courseId)}/materials`, formData),
+  ingest: (courseId, materialId) => api.post(`/api/courses/${enc(courseId)}/materials/${enc(materialId)}/ingest`),
+}
+
+// AI Question Generation (Feature 1 Complete - Phase 3)
+export const questionGenerationApi = {
+  generate: (courseId, payload) => api.post(`/api/courses/${enc(courseId)}/question-bank/generations`, payload),
+}
+
+// AI Viva Interview (F3 & Phase 3 Integration)
 export const interviewApi = {
-  mySessions: () => api.get('/api/student/exam-sessions'),
-  mySession: (id) => api.get(`/api/student/exam-sessions/${enc(id)}`),
+  mySessions: async () => {
+    let list
+    try {
+      list = await api.get('/api/interview/my-sessions')
+    } catch {
+      list = await api.get('/api/student/exam-sessions').catch(() => [])
+    }
+    const arr = Array.isArray(list) ? list : []
+    return arr.map((s) => {
+      const sessionId = s.examSessionId ?? s.id
+      const startAt = s.startTime ?? s.startAt
+      const endAt = s.endTime ?? s.endAt
+      const now = new Date().getTime()
+      const startMs = startAt ? new Date(startAt).getTime() : 0
+      const endMs = endAt ? new Date(endAt).getTime() : 0
+      const isOpen = s.isOpenNow !== undefined ? s.isOpenNow : (startMs <= now && now <= endMs)
+      const phase = s.sessionStatus === 'Closed' || s.phase === 'Closed' ? 'Closed' : (isOpen ? 'Open now' : 'Published')
+      const latestAttemptId = s.latestAttemptId ?? s.attempt?.id ?? null
+      const latestStatus = s.latestAttemptStatus ?? s.attempt?.status ?? null
+      return {
+        ...s,
+        id: sessionId,
+        examSessionId: sessionId,
+        title: s.title || 'Viva Exam',
+        courseCode: s.courseCode || 'SWD392',
+        courseName: s.courseName || s.courseCode || 'SWD392',
+        startAt,
+        endAt,
+        startTime: startAt,
+        endTime: endAt,
+        phase,
+        sessionStatus: s.sessionStatus ?? (phase === 'Closed' ? 'Closed' : 'Published'),
+        isOpenNow: isOpen,
+        questionCount: s.questionCount ?? 0,
+        timeLimitSeconds: s.timeLimitPerAnswerSeconds ?? s.timeLimitSeconds ?? 90,
+        timeLimitPerAnswerSeconds: s.timeLimitPerAnswerSeconds ?? s.timeLimitSeconds ?? 90,
+        maxFollowUps: s.maxFollowUps ?? 2,
+        participantStatus: s.participantStatus ?? 'Registered',
+        latestAttemptId,
+        latestAttemptStatus: latestStatus,
+        attempt: latestAttemptId ? {
+          id: latestAttemptId,
+          status: latestStatus,
+          endedAt: latestStatus === 'Finalized' || latestStatus === 'PendingReview' ? endAt : null,
+          finalScore: s.attempt?.finalScore ?? null,
+          maxScore: s.attempt?.maxScore ?? 10,
+        } : null,
+      }
+    })
+  },
+  mySession: async (id) => {
+    const list = await interviewApi.mySessions()
+    return (list || []).find((s) => s.examSessionId === id || s.id === id) || null
+  },
   start: (examSessionId) => api.post('/api/interview-attempts', { examSessionId }),
-  get: (attemptId) => api.get(`/api/interview-attempts/${enc(attemptId)}`),
-  // M1: typed answer. M2 sends the recording as multipart and receives the next question over WebSocket.
-  submit: (attemptId, answerText, durationSeconds) => api.post(`/api/interview-attempts/${enc(attemptId)}/responses`, { answerText, durationSeconds }),
+  get: async (attemptId) => {
+    const raw = await api.get(`/api/interview-attempts/${enc(attemptId)}`)
+    if (!raw) return null
+    const currentTurn = raw.currentTurn
+    const isFollowUp = currentTurn?.type === 'FollowUp'
+    const followUpNumber = isFollowUp ? Math.max(1, (currentTurn?.turnNo ?? 2) - 1) : 0
+    const qIndex = (currentTurn?.questionOrderNo ?? 1) - 1
+    const totalQuestions = raw.totalQuestions ?? raw.session?.questionCount ?? 1
+    const limit = raw.timeLimitSeconds ?? raw.session?.timeLimitSeconds ?? 90
+    const maxFu = raw.maxFollowUps ?? raw.session?.maxFollowUps ?? 2
+    const title = raw.examTitle ?? raw.session?.title ?? 'Viva Exam'
+    const courseCode = raw.courseCode ?? raw.session?.courseCode ?? 'SWD392'
+
+    return {
+      ...raw,
+      id: raw.attemptId ?? raw.id,
+      attemptId: raw.attemptId ?? raw.id,
+      status: raw.status,
+      startedAt: raw.startedAt,
+      endedAt: raw.completedAt ?? raw.endedAt,
+      session: {
+        id: raw.examSessionId ?? raw.session?.id,
+        title,
+        courseCode,
+        questionCount: totalQuestions,
+        timeLimitSeconds: limit,
+        maxFollowUps: maxFu,
+        endAt: raw.sessionEndAt ?? raw.session?.endAt ?? new Date(Date.now() + 4 * 3600000).toISOString(),
+      },
+      currentTurn: currentTurn ? {
+        ...currentTurn,
+        turnId: currentTurn.turnId,
+        questionText: currentTurn.questionText,
+        type: currentTurn.type,
+        questionOrderNo: currentTurn.questionOrderNo,
+        turnNo: currentTurn.turnNo,
+      } : null,
+      current: currentTurn ? {
+        text: currentTurn.questionText,
+        questionIndex: qIndex,
+        followUpNumber: followUpNumber,
+        type: currentTurn.type,
+        turnId: currentTurn.turnId,
+        mainText: isFollowUp ? 'Follow-up question' : '',
+      } : (raw.current ?? null),
+      answered: Array.isArray(raw.answered) && raw.answered.length > 0 ? raw.answered : Array.from({ length: raw.answeredQuestions || 0 }, (_, i) => ({
+        index: i,
+        reached: true,
+        turns: [{ type: 'Main', durationSeconds: 30 }],
+      })),
+    }
+  },
+  submit: (attemptId, answerText, turnId) => api.post(`/api/interview-attempts/${enc(attemptId)}/responses`, { answerText, turnId }),
 }
 
 export const scoreReviewApi = {
@@ -78,68 +207,91 @@ export const scoreReviewApi = {
     const status = a.status ?? r.status ?? 'PendingReview'
     const finalScore = a.review?.finalScore ?? r.finalScore ?? null
     const comment = a.review?.comment ?? r.lecturerComment ?? ''
-    const confirmedAt = a.review?.reviewedAt ?? r.completedAt ?? r.startedAt
+    const confirmedAt = a.review?.reviewedAt ?? a.review?.confirmedAt ?? r.completedAt ?? r.startedAt
+    const reviewStatus = a.review?.status ?? (status === 'Finalized' ? 'Approved' : (finalScore != null ? 'Pending' : null))
 
     return {
       id: attemptId,
       status,
       startedAt: a.startedAt ?? r.startedAt,
       endedAt: a.completedAt ?? r.completedAt ?? r.startedAt,
-      endReason: 'Finished',
+      endReason: a.endReason ?? 'Finished',
       student: {
-        fullName: r.studentName ?? 'Student',
-        studentCode: r.studentCode ?? '',
+        fullName: r.studentName ?? a.student?.fullName ?? 'Student',
+        studentCode: r.studentCode ?? a.student?.studentCode ?? '',
       },
       session: {
         id: sessionId,
-        title: r.examTitle ?? 'Viva Exam',
-        classCode: '',
-        courseCode: r.courseCode ?? '',
-        timeLimitSeconds: 60,
+        title: r.examTitle ?? a.session?.title ?? 'Viva Exam',
+        classCode: a.session?.classCode ?? '',
+        courseCode: r.courseCode ?? a.session?.courseCode ?? '',
+        timeLimitSeconds: a.session?.timeLimitSeconds ?? 60,
       },
-      aiTotal: r.suggestedTotalScore ?? 0,
+      aiTotal: r.suggestedTotalScore ?? a.aiTotal ?? 0,
       maxScore: r.maxTotalScore ?? (Array.isArray(r.questions) ? r.questions.reduce((sum, q) => sum + (q.maxScore ?? 0), 0) : 10),
-      review: finalScore != null ? {
-        finalScore,
+      review: (finalScore != null || a.review != null) ? {
+        finalScore: finalScore ?? 0,
         comment,
         confirmedAt,
+        status: reviewStatus,
       } : null,
-      questions: (r.questions ?? []).map((q, i) => ({
+      questions: (r.questions ?? a.questions ?? []).map((q, i) => ({
         index: i,
         order: q.orderNo ?? (i + 1),
-        text: q.content ?? '',
+        text: q.content ?? q.text ?? '',
         maxScore: q.maxScore ?? 2.5,
-        reached: (q.turns?.length ?? 0) > 0 || q.suggestedScore != null,
+        reached: (q.turns?.length ?? 0) > 0 || q.suggestedScore != null || q.reached,
         ai: {
-          score: q.suggestedScore ?? 0,
-          comment: q.aiFeedback ?? '',
+          score: q.suggestedScore ?? q.ai?.score ?? 0,
+          comment: q.aiFeedback ?? q.ai?.comment ?? '',
         },
         turns: (q.turns ?? []).map((t) => {
-          const dur = t.answeredAt && t.askedAt
+          const dur = t.durationSeconds ?? (t.answeredAt && t.askedAt
             ? Math.max(1, Math.round((new Date(t.answeredAt) - new Date(t.askedAt)) / 1000))
-            : 30
+            : 30)
           return {
             type: t.type === 'FollowUp' ? 'FollowUp' : 'Main',
-            questionText: t.questionText,
-            answerText: t.answerTranscript ?? '',
+            questionText: t.questionText ?? t.question,
+            answerText: t.answerTranscript ?? t.answerText ?? t.answer ?? '',
             durationSeconds: dur,
           }
         }),
       })),
-      next: null,
+      next: a.next ?? null,
     }
   },
-  confirm: async (attemptId, finalScore, comment) => {
-    const res = await api.put(`/api/interview-attempts/${enc(attemptId)}/score-review`, {
+  saveDraft: async (attemptId, finalScore, comment) => {
+    const res = await api.put(`/api/interview-attempts/${enc(attemptId)}/score-review/draft`, {
       finalScore: Number(finalScore),
       comment: comment ?? '',
     })
+    return {
+      status: 'PendingReview',
+      review: {
+        finalScore: res?.finalScore ?? Number(finalScore),
+        comment: res?.comment ?? comment ?? '',
+        confirmedAt: res?.reviewedAt ?? new Date().toISOString(),
+        status: 'Pending',
+      },
+    }
+  },
+  confirm: async (attemptId, finalScore, comment) => {
+    let res
+    try {
+      res = await api.post(`/api/interview-attempts/${enc(attemptId)}/score-review/confirm`)
+    } catch {
+      res = await api.put(`/api/interview-attempts/${enc(attemptId)}/score-review`, {
+        finalScore: Number(finalScore),
+        comment: comment ?? '',
+      })
+    }
     return {
       status: 'Finalized',
       review: {
         finalScore: res?.finalScore ?? Number(finalScore),
         comment: res?.comment ?? comment ?? '',
         confirmedAt: res?.reviewedAt ?? new Date().toISOString(),
+        status: 'Approved',
       },
     }
   },
@@ -370,12 +522,11 @@ export const examConfigApi = {
       status: p.status ?? 'Registered',
     }))
 
-    const missingRubrics = questions.filter((q) => !q.rubric || !q.rubric.criteria).map((q) => q.id)
     const hasWindow = !!(s.startTime || s.startAt) && !!(s.endTime || s.endAt)
 
     const publishCheck = {
       hasQuestion: questions.length > 0,
-      missingRubrics,
+      hasPlatformRubric: true,
       hasStudent: participants.length > 0,
       hasWindow,
     }
@@ -502,6 +653,14 @@ export const examConfigApi = {
   publish: async (id) => {
     await api.post(`/api/exam-sessions/${enc(id)}/publish`)
     return examConfigApi.get(id)
+  },
+
+  attachQuestionsFromBank: async (sessionId, itemIds) => {
+    return questionBankApi.attachToSession(sessionId, itemIds)
+  },
+
+  getQuestions: async (sessionId) => {
+    return api.get(`/api/exam-sessions/${enc(sessionId)}/questions`)
   },
 
   close: async (id) => {

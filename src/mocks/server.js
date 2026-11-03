@@ -104,7 +104,7 @@ const sessionSummary = (s) => {
 
 const publishCheck = (s) => ({
   hasQuestion: s.questions.length > 0,
-  missingRubrics: s.questions.filter((q) => !q.rubric?.criteria).map((q) => q.id),
+  hasPlatformRubric: true,
   hasStudent: s.participants.length > 0,
   hasWindow: !!(s.startAt && s.endAt),
 })
@@ -122,6 +122,15 @@ const sessionDetail = (s) => ({
 function attemptState(a) {
   const s = sessionById(a.sessionId)
   const base = {
+    examSessionId: s.id,
+    examTitle: s.title,
+    timeLimitSeconds: s.timeLimitSeconds,
+    maxFollowUps: s.maxFollowUps,
+    totalQuestions: s.questions.length,
+    answeredQuestions: a.responses.filter(Boolean).length,
+    completedAt: a.endedAt,
+    stateVersion: 1,
+    currentTurn: null,
     attemptId: a.id, status: a.status, endReason: a.endReason, startedAt: a.startedAt, endedAt: a.endedAt,
     session: { id: s.id, title: s.title, courseCode: courseById(s.courseId).code, classCode: s.classCode, endAt: s.endAt, timeLimitSeconds: s.timeLimitSeconds, maxFollowUps: s.maxFollowUps, questionCount: s.questions.length },
     answered: a.responses.map((r, i) => ({ index: i, reached: !!r, turns: r ? r.turns.map((t) => ({ type: t.type, durationSeconds: t.dur })) : [] })),
@@ -130,9 +139,24 @@ function attemptState(a) {
   if (a.current) {
     const qq = s.questions[a.current.qIndex]
     const fu = a.current.followUps
+    const qText = fu ? (qq.followUps?.[fu - 1] ?? `Follow-up on ${qq.text}`) : qq.text
+    const turnType = fu ? 'FollowUp' : 'Main'
+    const turnId = a.current.turnId || `turn-${a.id}-${a.current.qIndex}-${fu}`
+    a.current.turnId = turnId
+    base.currentTurn = {
+      questionResponseId: `qr-${a.id}-${a.current.qIndex}`,
+      questionId: qq.id,
+      questionOrderNo: a.current.qIndex + 1,
+      turnNo: fu ? fu + 1 : 1,
+      type: turnType,
+      questionText: qText,
+      askedAt: a.current.askedAt,
+      deadlineAt: new Date(new Date(a.current.askedAt).getTime() + s.timeLimitSeconds * 1000).toISOString(),
+      turnId,
+    }
     base.current = {
       questionIndex: a.current.qIndex, questionId: qq.id, type: fu ? 'FollowUp' : 'Main', followUpNumber: fu,
-      text: fu ? qq.followUps[fu - 1] : qq.text, mainText: qq.text, short: qq.short, askedAt: a.current.askedAt,
+      text: fu ? qq.followUps[fu - 1] : qq.text, mainText: qq.text, short: qq.short, askedAt: a.current.askedAt, turnId,
     }
   }
   return base
@@ -152,7 +176,10 @@ function attemptForReview(a) {
       return { index: i, text: qq.text, maxScore: qq.rubric?.maxScore ?? 2.5, reached: !!r, ai: r?.ai ?? { score: 0, comment: 'Not reached. The session closed before this question was asked.' }, turns: r ? turnsOut(r) : [] }
     }),
     aiTotal: aiTotal(a),
-    review: a.review,
+    review: a.review ? {
+      ...a.review,
+      status: a.review.status ?? (a.status === 'Finalized' ? 'Approved' : 'Pending'),
+    } : null,
   }
 }
 
@@ -196,6 +223,31 @@ route('PATCH', '/api/account', ({ user, body }) => {
 })
 
 // ---------- student ----------
+route('GET', '/api/interview/my-sessions', ({ user }) => {
+  requireRole(user, 'Student')
+  return db.sessions
+    .filter((s) => s.status === 'Published' && s.participants.includes(user.id))
+    .map((s) => {
+      const a = db.attempts.find((x) => x.sessionId === s.id && x.studentId === user.id)
+      const c = courseById(s.courseId)
+      const phase = sessionPhase(s)
+      return {
+        examSessionId: s.id,
+        courseCode: c?.code ?? 'SWD392',
+        title: s.title,
+        startTime: s.startAt,
+        endTime: s.endAt,
+        sessionStatus: s.status,
+        isOpenNow: phase === 'Open now',
+        questionCount: s.questions.length,
+        timeLimitPerAnswerSeconds: s.timeLimitSeconds,
+        participantStatus: a ? (a.status === 'InProgress' ? 'InProgress' : 'Completed') : 'Registered',
+        latestAttemptId: a?.id ?? null,
+        latestAttemptStatus: a?.status ?? null,
+      }
+    })
+})
+
 route('GET', '/api/student/exam-sessions', ({ user }) => {
   requireRole(user, 'Student')
   return db.sessions
@@ -247,22 +299,22 @@ route('POST', '/api/interview-attempts/:id/responses', ({ user, params, body }) 
   const r = a.responses[cur.qIndex]
   r.turns.push({ type: cur.followUps ? 'FollowUp' : 'Main', question: cur.followUps ? qq.followUps[cur.followUps - 1] : qq.text, answer, dur, at: nowIso() })
 
-  if (sessionPhase(s) === 'Closed') { finishAttempt(a, 'SessionClosed', s.endAt); return { outcome: 'Completed', state: attemptState(a) } }
+  if (sessionPhase(s) === 'Closed') { finishAttempt(a, 'SessionClosed', s.endAt); const st = attemptState(a); return { outcome: 'Completed', timedOut: false, attempt: st, state: st } }
 
   const words = answer.split(/\s+/).filter(Boolean).length
   const sufficient = words >= 25 || cur.followUps >= s.maxFollowUps || cur.followUps >= (qq.followUps?.length ?? 0)
   if (!sufficient) {
-    a.current = { qIndex: cur.qIndex, followUps: cur.followUps + 1, askedAt: nowIso() }
-    return { outcome: 'FollowUp', state: attemptState(a) }
+    a.current = { qIndex: cur.qIndex, followUps: cur.followUps + 1, askedAt: nowIso(), turnId: 'turn-' + Date.now().toString(36) }
+    const st = attemptState(a); return { outcome: 'FollowUp', timedOut: false, attempt: st, state: st }
   }
   r.ai = scoreAnswer(qq, r.turns)
   if (cur.qIndex + 1 < s.questions.length) {
-    a.current = { qIndex: cur.qIndex + 1, followUps: 0, askedAt: nowIso() }
+    a.current = { qIndex: cur.qIndex + 1, followUps: 0, askedAt: nowIso(), turnId: 'turn-' + Date.now().toString(36) }
     a.responses[cur.qIndex + 1] = { questionId: s.questions[cur.qIndex + 1].id, turns: [], ai: null }
-    return { outcome: 'NextQuestion', state: attemptState(a) }
+    const st = attemptState(a); return { outcome: 'NextQuestion', timedOut: false, attempt: st, state: st }
   }
   finishAttempt(a, 'Completed')
-  return { outcome: 'Completed', state: attemptState(a) }
+  const finalSt = attemptState(a); return { outcome: 'Completed', timedOut: false, attempt: finalSt, state: finalSt }
 })
 
 route('GET', '/api/interview-attempts/:id/report', ({ user, params }) => {
@@ -278,6 +330,38 @@ route('GET', '/api/interview-attempts/:id/report', ({ user, params }) => {
 // ---------- lecturer ----------
 const lecturerCourses = (u) => db.courses.filter((c) => u.role === 'Administrator' || c.lecturerIds.includes(u.id))
 const canSee = (u, s) => lecturerCourses(u).some((c) => c.id === s.courseId)
+
+route('GET', '/api/platform-rubric', () => ({
+  id: 'mock-platform-rubric-v1',
+  templateId: 'mock-platform-template-v1',
+  courseId: null,
+  versionNo: 1,
+  maxScore: 10.0,
+  isSealed: true,
+  isActive: true,
+  createdBy: 'admin',
+  createdAt: '2026-11-01T10:00:00Z',
+  criteria: [
+    {
+      id: 'crit-1',
+      orderNo: 1,
+      description: 'Kiến thức chuyên môn và độ chính xác của câu trả lời',
+      maxPoints: 4.0,
+    },
+    {
+      id: 'crit-2',
+      orderNo: 2,
+      description: 'Khả năng phân tích, phản biện và trả lời câu hỏi xoáy',
+      maxPoints: 3.5,
+    },
+    {
+      id: 'crit-3',
+      orderNo: 3,
+      description: 'Phong thái, cấu trúc trình bày và sự tự tin',
+      maxPoints: 2.5,
+    },
+  ],
+}))
 
 route('GET', '/api/lecturer/courses', ({ user }) => { requireRole(user, 'Lecturer'); return lecturerCourses(user).map((c) => ({ id: c.id, code: c.code, name: c.name })) })
 
@@ -344,6 +428,202 @@ route('DELETE', '/api/exam-sessions/:id/questions/:qid', ({ user, params }) => {
   return sessionDetail(s)
 })
 
+// Question Bank API routes
+route('GET', '/api/courses/:courseId/question-bank', ({ params, query }) => {
+  const cid = String(params.courseId).toLowerCase()
+  let list = (db.questionBank ?? []).filter((q) => q.courseId.toLowerCase() === cid)
+  if (query?.status && query.status !== 'All') {
+    list = list.filter((q) => q.status === query.status)
+  }
+  return list
+})
+
+route('GET', '/api/courses/:courseId/question-bank/:itemId', ({ params }) => {
+  const item = (db.questionBank ?? []).find((q) => q.id === params.itemId) ?? fail('question_bank_not_found', 'Question not found in bank.', 404)
+  return item
+})
+
+route('POST', '/api/courses/:courseId/question-bank', ({ params, body }) => {
+  const cid = String(params.courseId).toLowerCase()
+  const topic = String(body?.topic ?? '').trim()
+  const bloom = body?.bloom ?? 'Understand'
+  const content = String(body?.content ?? '').trim()
+  if (!topic || !content) fail('question_bank_invalid', 'Topic and content are required.')
+  const duplicate = (db.questionBank ?? []).some((q) => q.courseId.toLowerCase() === cid && q.content.trim().toLowerCase() === content.toLowerCase())
+  if (duplicate) fail('question_bank_duplicate', 'Nội dung câu hỏi đã tồn tại trong môn học.', 409)
+  const item = {
+    id: 'qb-' + Date.now().toString(36),
+    courseId: params.courseId,
+    topic,
+    bloom,
+    content,
+    origin: 'Manual',
+    status: 'Draft',
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+    revisions: [
+      { id: 'rev-' + Date.now().toString(36), revisionNo: 1, content, createdAt: nowIso() },
+    ],
+  }
+  if (!db.questionBank) db.questionBank = []
+  db.questionBank.unshift(item)
+  return item
+})
+
+route('PUT', '/api/courses/:courseId/question-bank/:itemId', ({ params, body }) => {
+  const item = (db.questionBank ?? []).find((q) => q.id === params.itemId) ?? fail('question_bank_not_found', 'Question not found.', 404)
+  if (item.status !== 'Draft') fail('question_bank_locked', 'Chỉ câu hỏi nháp mới được chỉnh sửa.', 409)
+  const topic = String(body?.topic ?? item.topic).trim()
+  const bloom = body?.bloom ?? item.bloom
+  const content = String(body?.content ?? item.content).trim()
+  item.topic = topic
+  item.bloom = bloom
+  item.content = content
+  item.updatedAt = nowIso()
+  const revNo = (item.revisions?.length ?? 0) + 1
+  if (!item.revisions) item.revisions = []
+  item.revisions.push({ id: 'rev-' + Date.now().toString(36), revisionNo: revNo, content, createdAt: nowIso() })
+  return item
+})
+
+route('POST', '/api/courses/:courseId/question-bank/:itemId/approve', ({ params }) => {
+  const item = (db.questionBank ?? []).find((q) => q.id === params.itemId) ?? fail('question_bank_not_found', 'Question not found.', 404)
+  if (item.status !== 'Draft') fail('question_bank_not_draft', 'Chỉ câu hỏi nháp mới được duyệt.', 409)
+  item.status = 'Approved'
+  item.updatedAt = nowIso()
+  return item
+})
+
+route('POST', '/api/courses/:courseId/question-bank/:itemId/reject', ({ params }) => {
+  const item = (db.questionBank ?? []).find((q) => q.id === params.itemId) ?? fail('question_bank_not_found', 'Question not found.', 404)
+  if (item.status !== 'Draft') fail('question_bank_not_draft', 'Chỉ câu hỏi nháp mới được từ chối.', 409)
+  item.status = 'Rejected'
+  item.updatedAt = nowIso()
+  return item
+})
+
+// Course Materials routes
+route('GET', '/api/courses/:courseId/materials', ({ params }) => {
+  const cid = String(params.courseId).toLowerCase()
+  return (db.courseMaterials ?? []).filter((m) => m.courseId.toLowerCase() === cid)
+})
+
+route('POST', '/api/courses/:courseId/materials', ({ params, body }) => {
+  const mat = {
+    id: 'mat-' + Date.now().toString(36),
+    courseId: params.courseId,
+    fileName: body?.fileName ?? 'Uploaded_Material.pdf',
+    contentType: 'application/pdf',
+    sizeBytes: 1850000,
+    sha256: 'mock-sha256-' + Date.now().toString(36),
+    status: 'Pending',
+    ingestError: null,
+    createdAt: nowIso(),
+  }
+  if (!db.courseMaterials) db.courseMaterials = []
+  db.courseMaterials.unshift(mat)
+  return mat
+})
+
+route('POST', '/api/courses/:courseId/materials/:materialId/ingest', ({ params }) => {
+  const mat = (db.courseMaterials ?? []).find((m) => m.id === params.materialId)
+  if (!mat) fail('material_not_found', 'Tài liệu không tồn tại.', 404)
+  mat.status = 'Ready'
+  return mat
+})
+
+// Question Generation route
+route('POST', '/api/courses/:courseId/question-bank/generations', ({ params, body }) => {
+  const cid = String(params.courseId).toLowerCase()
+  const topic = String(body?.topic ?? '').trim()
+  const bloom = body?.bloom ?? 'Understand'
+  const count = Math.min(20, Math.max(1, Number(body?.count) || 3))
+  const platformRubricVersionId = body?.platformRubricVersionId ?? '44444444-0000-0000-0000-000000000001'
+  const sourceMaterialIds = body?.sourceMaterialIds ?? []
+
+  if (!topic) fail('topic_required', 'Chủ đề là bắt buộc.')
+
+  const drafts = []
+  for (let i = 1; i <= count; i++) {
+    const draftId = 'ai-draft-' + Date.now().toString(36) + '-' + i
+    const content = `[${bloom}] Hãy giải thích và phân tích sâu về "${topic}" trong bối cảnh kiến trúc hệ thống (Câu hỏi AI sinh #${i}).`
+    const citations = sourceMaterialIds.length > 0 ? [
+      {
+        sourceId: sourceMaterialIds[0],
+        sourceIndex: 1,
+        quote: `Tài liệu giáo trình đề cập chi tiết đến ${topic} và các nguyên tắc thiết kế cốt lõi.`,
+      },
+    ] : []
+
+    const draft = {
+      draftId,
+      orderNo: i,
+      content,
+      bloom,
+      status: 'Draft',
+      platformRubricVersionId,
+      citations,
+    }
+    drafts.push(draft)
+
+    // Tự động lưu vào questionBank
+    if (!db.questionBank) db.questionBank = []
+    db.questionBank.unshift({
+      id: draftId,
+      courseId: params.courseId,
+      topic,
+      bloom,
+      content,
+      origin: 'Ai',
+      status: 'Draft',
+      citations,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+      revisions: [
+        { id: 'rev-' + draftId, revisionNo: 1, content, createdAt: nowIso() },
+      ],
+    })
+  }
+
+  return {
+    courseId: params.courseId,
+    provider: 'MockAI',
+    status: 'Success',
+    drafts,
+  }
+})
+
+route('POST', '/api/exam-sessions/:id/questions/from-bank', ({ user, params, body }) => {
+  const s = ownSession(user, params.id)
+  if (s.status !== 'Draft') fail('exam_session_locked', 'A published session cannot be changed.', 409)
+  const itemIds = Array.isArray(body?.itemIds) ? body.itemIds : []
+  const attachedIds = []
+  for (const itemId of itemIds) {
+    const item = (db.questionBank ?? []).find((q) => q.id === itemId)
+    if (!item) continue
+    if (item.status !== 'Approved') fail('question_bank_item_not_approved', 'Only approved questions can be attached.', 409)
+    const exists = s.questions.some((q) => q.bankItemId === itemId || (q.text && q.text.trim() === item.content.trim()))
+    if (!exists) {
+      s.questions.push({
+        id: `${s.id}q${s.questions.length + 1}`,
+        orderNo: s.questions.length + 1,
+        text: item.content,
+        content: item.content,
+        short: item.content.length > 40 ? item.content.slice(0, 40) + '…' : item.content,
+        bankItemId: item.id,
+        rubric: null,
+      })
+      attachedIds.push(item.id)
+    }
+  }
+  return attachedIds
+})
+
+route('GET', '/api/exam-sessions/:id/questions', ({ user, params }) => {
+  const s = ownSession(user, params.id)
+  return s.questions
+})
+
 // rows: [{ studentCode, name, email }]; rows that match no account are skipped and reported
 route('POST', '/api/exam-sessions/:id/participants/import', ({ user, params, body }) => {
   const s = ownSession(user, params.id)
@@ -361,7 +641,7 @@ route('POST', '/api/exam-sessions/:id/participants/import', ({ user, params, bod
 route('POST', '/api/exam-sessions/:id/publish', ({ user, params }) => {
   const s = ownSession(user, params.id)
   const c = publishCheck(s)
-  if (!c.hasQuestion || c.missingRubrics.length || !c.hasStudent || !c.hasWindow) fail('exam_session_not_ready', 'This session is not ready to publish.', 409, c)
+  if (!c.hasQuestion || !c.hasStudent || !c.hasWindow) fail('exam_session_not_ready', 'This session is not ready to publish.', 409, c)
   s.status = 'Published'
   s.publishedAt = nowIso()
   return sessionDetail(s)
@@ -393,6 +673,34 @@ route('GET', '/api/interview-attempts/:id/review', ({ user, params }) => {
   return { ...attemptForReview(a), next: next ? { id: next.id, fullName: userById(next.studentId).fullName, endReason: next.endReason, endedAt: next.endedAt } : null }
 })
 
+route('PUT', '/api/interview-attempts/:id/score-review/draft', ({ user, params, body }) => {
+  requireRole(user, 'Lecturer')
+  const a = attemptById(params.id)
+  ownSession(user, a.sessionId)
+  if (a.status === 'InProgress') fail('attempt_not_finished', 'This attempt is still in progress.', 409)
+  const v = Number(body?.finalScore)
+  if (!(v >= 0 && v <= 10) || Math.abs(v * 4 - Math.round(v * 4)) > 1e-9) fail('final_score_invalid', 'Use a score from 0 to 10 in steps of 0.25.')
+  a.review = { finalScore: v, comment: String(body?.comment ?? '').trim(), confirmedAt: nowIso(), reviewerId: user.id, status: 'Pending' }
+  return { finalScore: v, comment: a.review.comment, status: 'Pending', reviewedAt: a.review.confirmedAt }
+})
+
+route('POST', '/api/interview-attempts/:id/score-review/confirm', ({ user, params }) => {
+  requireRole(user, 'Lecturer')
+  const a = attemptById(params.id)
+  ownSession(user, a.sessionId)
+  if (a.status === 'InProgress') fail('attempt_not_finished', 'This attempt is still in progress.', 409)
+  const v = a.review?.finalScore ?? aiTotal(a)
+  a.review = {
+    finalScore: v,
+    comment: a.review?.comment ?? '',
+    confirmedAt: nowIso(),
+    reviewerId: user.id,
+    status: 'Approved',
+  }
+  a.status = 'Finalized'
+  return { finalScore: v, comment: a.review.comment, status: 'Approved', reviewedAt: a.review.confirmedAt }
+})
+
 route('PUT', '/api/interview-attempts/:id/score-review', ({ user, params, body }) => {
   requireRole(user, 'Lecturer')
   const a = attemptById(params.id)
@@ -400,7 +708,7 @@ route('PUT', '/api/interview-attempts/:id/score-review', ({ user, params, body }
   if (a.status === 'InProgress') fail('attempt_not_finished', 'This attempt is still in progress.', 409)
   const v = Number(body?.finalScore)
   if (!(v >= 0 && v <= 10) || Math.abs(v * 4 - Math.round(v * 4)) > 1e-9) fail('final_score_invalid', 'Use a score from 0 to 10 in steps of 0.25.')
-  a.review = { finalScore: v, comment: String(body?.comment ?? '').trim(), confirmedAt: nowIso(), reviewerId: user.id }
+  a.review = { finalScore: v, comment: String(body?.comment ?? '').trim(), confirmedAt: nowIso(), reviewerId: user.id, status: 'Approved' }
   a.status = 'Finalized'
   return attemptForReview(a)
 })

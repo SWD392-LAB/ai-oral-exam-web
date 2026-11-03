@@ -38,10 +38,10 @@ export default function StudentHomePage() {
   const { later } = useTimeouts()
 
   const list = data ?? []
-  const open = list.find((x) => x.phase === 'Open now' && (!x.attempt || x.attempt.status === 'InProgress'))
-  const upcoming = list.filter((x) => x.phase === 'Published').sort((a, b) => new Date(a.startAt) - new Date(b.startAt))
+  const open = list.find((x) => (x.isOpenNow || x.phase === 'Open now') && x.participantStatus !== 'Completed' && (!x.attempt || x.attempt.status === 'InProgress'))
+  const upcoming = list.filter((x) => x !== open && (x.sessionStatus === 'Published' || x.phase === 'Published') && !x.isOpenNow && x.participantStatus !== 'Completed').sort((a, b) => new Date(a.startAt) - new Date(b.startAt))
   const finished = list
-    .filter((x) => x !== open && (x.attempt || x.phase === 'Closed'))
+    .filter((x) => x !== open && (x.participantStatus === 'Completed' || x.sessionStatus === 'Closed' || x.phase === 'Closed' || (x.attempt && x.attempt.status !== 'InProgress')) )
     .sort((a, b) => new Date(b.attempt?.endedAt ?? b.endAt) - new Date(a.attempt?.endedAt ?? a.endAt))
   const hasExams = !!data && (open || upcoming.length || finished.length)
 

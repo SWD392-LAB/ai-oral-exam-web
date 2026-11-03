@@ -22,9 +22,10 @@ import ReviewAttemptPage from '../../features/score-review/ReviewAttemptPage.jsx
 import StudentReportPage from '../../features/reporting/StudentReportPage.jsx'
 import SessionResultsPage from '../../features/reporting/SessionResultsPage.jsx'
 import ClassStatsPage from '../../features/reporting/ClassStatsPage.jsx'
+import QuestionBankPage from '../../features/question-bank/QuestionBankPage.jsx'
 
 const student = ['Student']
-const lecturer = ['Lecturer']
+const lecturer = ['Lecturer', 'Administrator']
 const admin = ['Administrator']
 
 export const router = createBrowserRouter([
@@ -68,6 +69,7 @@ export const router = createBrowserRouter([
             element: <RequireRole roles={lecturer} />,
             children: [
               { path: paths.sessions, element: <LecturerSessionsPage /> },
+              { path: paths.questionBank, element: <QuestionBankPage /> },
               { path: paths.results, element: <LecturerSessionsPage mode="results" /> },
               { path: paths.newSession, element: <NewSessionPage /> },
               { path: '/lecturer/sessions/:sessionId/setup', element: <SessionSetupPage /> },

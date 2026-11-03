@@ -12,6 +12,7 @@ export const paths = {
 
   sessions: '/lecturer/sessions',
   newSession: '/lecturer/sessions/new',
+  questionBank: '/lecturer/question-bank',
   sessionSetup: (sessionId) => `/lecturer/sessions/${sessionId}/setup`,
   sessionStudents: (sessionId) => `/lecturer/sessions/${sessionId}/students`,
   results: '/lecturer/results',

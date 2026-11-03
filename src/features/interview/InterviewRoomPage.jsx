@@ -18,6 +18,59 @@ const sr = { position: 'absolute', width: '1px', height: '1px', overflow: 'hidde
 const lowerFirst = (t) => (t ? t[0].toLowerCase() + t.slice(1) : '')
 const words = (t) => (t ? t.split(/\s+/).filter(Boolean) : [])
 
+function normalizeAttempt(dto) {
+  if (!dto) return null
+  const attemptId = dto.attemptId ?? dto.id
+  const currentTurn = dto.currentTurn
+  const isFollowUp = currentTurn?.type === 'FollowUp'
+  const followUpNumber = isFollowUp ? Math.max(1, (currentTurn?.turnNo ?? 2) - 1) : 0
+  const qIndex = (currentTurn?.questionOrderNo ?? 1) - 1
+  const totalQuestions = dto.totalQuestions ?? dto.session?.questionCount ?? 1
+  const limit = dto.timeLimitSeconds ?? dto.session?.timeLimitSeconds ?? 90
+  const maxFu = dto.maxFollowUps ?? dto.session?.maxFollowUps ?? 2
+  const title = dto.examTitle ?? dto.session?.title ?? 'Viva Exam'
+  const courseCode = dto.courseCode ?? dto.session?.courseCode ?? 'SWD392'
+
+  return {
+    ...dto,
+    id: attemptId,
+    attemptId,
+    status: dto.status,
+    startedAt: dto.startedAt,
+    endedAt: dto.completedAt ?? dto.endedAt,
+    session: {
+      id: dto.examSessionId ?? dto.session?.id,
+      title,
+      courseCode,
+      questionCount: totalQuestions,
+      timeLimitSeconds: limit,
+      maxFollowUps: maxFu,
+      endAt: dto.sessionEndAt ?? dto.session?.endAt ?? new Date(Date.now() + 4 * 3600000).toISOString(),
+    },
+    currentTurn: currentTurn ? {
+      ...currentTurn,
+      turnId: currentTurn.turnId,
+      questionText: currentTurn.questionText,
+      type: currentTurn.type,
+      questionOrderNo: currentTurn.questionOrderNo,
+      turnNo: currentTurn.turnNo,
+    } : null,
+    current: currentTurn ? {
+      text: currentTurn.questionText,
+      questionIndex: qIndex,
+      followUpNumber: followUpNumber,
+      type: currentTurn.type,
+      turnId: currentTurn.turnId,
+      mainText: isFollowUp ? 'Follow-up question' : '',
+    } : (dto.current ?? null),
+    answered: Array.isArray(dto.answered) && dto.answered.length > 0 ? dto.answered : Array.from({ length: dto.answeredQuestions || 0 }, (_, i) => ({
+      index: i,
+      reached: true,
+      turns: [{ type: 'Main', durationSeconds: 30 }],
+    })),
+  }
+}
+
 // FE-INT-01..05: the student's exam room. Typed answers (M1) where the browser cannot transcribe speech.
 export default function InterviewRoomPage() {
   const { attemptId } = useParams()
@@ -42,7 +95,7 @@ export default function InterviewRoomPage() {
   const questionKey = cur ? `${cur.questionIndex}-${cur.followUpNumber}` : ''
 
   useEffect(() => {
-    interviewApi.get(attemptId).then((a) => dispatch({ type: 'LOADED', attempt: a })).catch((e) => setError(e.message))
+    interviewApi.get(attemptId).then((a) => dispatch({ type: 'LOADED', attempt: normalizeAttempt(a) })).catch((e) => setError(e.message))
   }, [attemptId])
 
   // QUESTION: read the question aloud; the answer clock starts when the reading ends
@@ -71,13 +124,15 @@ export default function InterviewRoomPage() {
     setLastAnswer(text)
     dispatch({ type: 'SUBMIT', seconds })
     try {
-      const res = await atLeast(interviewApi.submit(attemptId, text, seconds), SAVED_MS)
-      dispatch({ type: 'OUTCOME', outcome: res.outcome, attempt: res.state })
+      const turnId = cur?.turnId || attempt?.currentTurn?.turnId
+      const res = await atLeast(interviewApi.submit(attemptId, text, turnId), SAVED_MS)
+      const nextAttempt = normalizeAttempt(res?.attempt || res?.state)
+      dispatch({ type: 'OUTCOME', outcome: res.outcome, attempt: nextAttempt })
     } catch (e) {
       setError(e.message)
       dispatch({ type: 'FAILED' })
     }
-  }, [phase, voiceMode, stt, typed, limit, room.answerStartedAt, attemptId])
+  }, [phase, voiceMode, stt, typed, limit, room.answerStartedAt, attemptId, cur, attempt])
 
   const left = phase === Phase.LISTENING
     ? Math.max(0, limit - Math.floor((now - room.answerStartedAt) / 1000))
@@ -91,7 +146,7 @@ export default function InterviewRoomPage() {
   useEffect(() => {
     if (!sessionOver) return
     if (phase === Phase.LISTENING) submit()
-    else if (phase === Phase.QUESTION) { cancel(); interviewApi.get(attemptId).then((a) => dispatch({ type: 'LOADED', attempt: a })) }
+    else if (phase === Phase.QUESTION) { cancel(); interviewApi.get(attemptId).then((a) => dispatch({ type: 'LOADED', attempt: normalizeAttempt(a) })) }
   }, [sessionOver, phase, submit, cancel, attemptId])
 
   useEffect(() => {

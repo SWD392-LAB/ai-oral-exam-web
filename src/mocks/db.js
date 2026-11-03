@@ -269,5 +269,104 @@ const emailLinks = {
   'demo-expired': { purpose: 'PasswordReset', userId: 'anh', expiresAt: at(LOAD, -60), usedAt: null },
 }
 
-export const db = { users, courses, sessions, attempts, auditLog, aiSettings, emailLinks, loadedAt: LOAD }
+// ---------- question bank ----------
+const questionBank = [
+  {
+    id: 'qb-swd-01',
+    courseId: 'swd392',
+    topic: 'Microservices Architecture',
+    bloom: 'Understand',
+    content: 'Trình bày sự khác biệt giữa Saga Pattern Orchestration và Choreography trong việc quản lý transaction phân tán?',
+    origin: 'Manual',
+    status: 'Approved',
+    createdAt: at(LOAD, -60 * 24 * 5),
+    updatedAt: at(LOAD, -60 * 24 * 4),
+    revisions: [
+      { id: 'rev-01', revisionNo: 1, content: 'Trình bày sự khác biệt giữa Saga Pattern Orchestration và Choreography trong việc quản lý transaction phân tán?', createdAt: at(LOAD, -60 * 24 * 5) },
+    ],
+  },
+  {
+    id: 'qb-swd-02',
+    courseId: 'swd392',
+    topic: 'Design Patterns',
+    bloom: 'Apply',
+    content: 'Khi nào nên sử dụng Strategy Pattern thay cho State Pattern? Cho ví dụ minh họa cụ thể trong hệ thống thanh toán điện tử.',
+    origin: 'Manual',
+    status: 'Approved',
+    createdAt: at(LOAD, -60 * 24 * 3),
+    updatedAt: at(LOAD, -60 * 24 * 2),
+    revisions: [
+      { id: 'rev-02', revisionNo: 1, content: 'Khi nào nên sử dụng Strategy Pattern thay cho State Pattern? Cho ví dụ minh họa cụ thể trong hệ thống thanh toán điện tử.', createdAt: at(LOAD, -60 * 24 * 3) },
+    ],
+  },
+  {
+    id: 'qb-swd-03',
+    courseId: 'swd392',
+    topic: 'Clean Architecture',
+    bloom: 'Analyze',
+    content: 'Phân tích nguyên tắc Dependency Inversion (DIP) và cách áp dụng trong kiến trúc Clean Architecture để tách biệt nghiệp vụ khỏi framework ngoại vi?',
+    origin: 'Manual',
+    status: 'Draft',
+    createdAt: at(LOAD, -60 * 12),
+    updatedAt: at(LOAD, -60 * 6),
+    revisions: [
+      { id: 'rev-03', revisionNo: 1, content: 'Phân tích nguyên tắc Dependency Inversion (DIP) và cách áp dụng trong kiến trúc Clean Architecture để tách biệt nghiệp vụ khỏi framework ngoại vi?', createdAt: at(LOAD, -60 * 12) },
+    ],
+  },
+  {
+    id: 'qb-swd-04',
+    courseId: 'swd392',
+    topic: 'Cloud Design',
+    bloom: 'Remember',
+    content: 'Nêu định nghĩa và mục đích của Circuit Breaker pattern trong kiến trúc microservices.',
+    origin: 'Manual',
+    status: 'Rejected',
+    createdAt: at(LOAD, -60 * 24 * 6),
+    updatedAt: at(LOAD, -60 * 24 * 5),
+    revisions: [
+      { id: 'rev-04', revisionNo: 1, content: 'Nêu định nghĩa và mục đích của Circuit Breaker pattern trong kiến trúc microservices.', createdAt: at(LOAD, -60 * 24 * 6) },
+    ],
+  },
+  {
+    id: 'qb-swt-01',
+    courseId: 'swt301',
+    topic: 'Unit Testing',
+    bloom: 'Apply',
+    content: 'Trình bày kỹ thuật Mocking và Stubbing khi viết Unit Test cho tầng Service phụ thuộc vào Database Repository.',
+    origin: 'Manual',
+    status: 'Approved',
+    createdAt: at(LOAD, -60 * 24 * 2),
+    updatedAt: at(LOAD, -60 * 24 * 1),
+    revisions: [
+      { id: 'rev-swt-01', revisionNo: 1, content: 'Trình bày kỹ thuật Mocking và Stubbing khi viết Unit Test cho tầng Service phụ thuộc vào Database Repository.', createdAt: at(LOAD, -60 * 24 * 2) },
+    ],
+  },
+]
+
+const courseMaterials = [
+  {
+    id: 'mat-swd-01',
+    courseId: 'swd392',
+    fileName: 'SWD392_Software_Architecture_Syllabus.pdf',
+    contentType: 'application/pdf',
+    sizeBytes: 2450000,
+    sha256: 'a1b2c3d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789abcdef0',
+    status: 'Ready',
+    ingestError: null,
+    createdAt: at(LOAD, -60 * 24 * 5),
+  },
+  {
+    id: 'mat-swd-02',
+    courseId: 'swd392',
+    fileName: 'Domain_Driven_Design_Reference.docx',
+    contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    sizeBytes: 1120000,
+    sha256: 'b2c3d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789abcdef01',
+    status: 'Ready',
+    ingestError: null,
+    createdAt: at(LOAD, -60 * 24 * 3),
+  },
+]
+
+export const db = { users, courses, sessions, attempts, auditLog, aiSettings, emailLinks, questionBank, courseMaterials, loadedAt: LOAD }
 export { addUser, addAttempt, splitScore, rand, staff }
