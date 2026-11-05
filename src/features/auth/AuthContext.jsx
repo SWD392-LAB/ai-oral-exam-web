@@ -50,6 +50,10 @@ function AuthState({ children }) {
     setProfile((prev) => ({ ...(prev ?? {}), username: name }))
   }, [])
 
+  const setFullName = useCallback((name) => {
+    setProfile((prev) => ({ ...(prev ?? {}), fullName: name }))
+  }, [])
+
   const signOut = useCallback(async () => {
     setProfile(null)
     try {
@@ -61,7 +65,7 @@ function AuthState({ children }) {
   }, [])
 
   const value = useMemo(
-    () => ({ user, ready, sessionEnded, signIn, signOut, setUsername, authError: oidc.error ?? null }),
+    () => ({ user, ready, sessionEnded, signIn, signOut, setUsername, setFullName, authError: oidc.error ?? null }),
     [user, ready, sessionEnded, signIn, signOut, oidc.error],
   )
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -12,13 +12,13 @@ import './AccountSettings.css'
 // Account settings follow the signed-in role: students see Night (the wireframe), lecturers and
 // administrators see the same page in Moonlight (.as-moon swaps the colour tokens) under their own bar.
 export default function AccountSettingsPage() {
-  const { user, setUsername, signOut } = useAuth()
+  const { user, setUsername, setFullName, signOut } = useAuth()
   const [s, setState] = useMergeState({ draft: null, save: 'idle', ticks: 0, error: null })
   const staff = user.role !== 'Student'
-  // the real API has no endpoint that changes the user's own name yet; only the mock does
-  const canEdit = USE_MOCKS
+  // the mock changes the username; the real API changes the account's full name (PATCH /api/auth/me)
+  const canEdit = true
   // with the real API the name shown is the account's full name; the token's username is the login (the email)
-  const saved = canEdit ? user.username : user.fullName
+  const saved = USE_MOCKS ? user.username : user.fullName
   const draft = s.draft ?? saved
   const bad = draft.trim() === ''
   const dirty = draft.trim() !== saved
@@ -27,8 +27,13 @@ export default function AccountSettingsPage() {
     if (bad || !dirty || s.save === 'saving') return
     setState({ save: 'saving', error: null })
     try {
-      const u = await atLeast(accountApi.changeUsername(draft.trim()), 650)
-      setUsername(u.username)
+      if (USE_MOCKS) {
+        const u = await atLeast(accountApi.changeUsername(draft.trim()), 650)
+        setUsername(u.username)
+      } else {
+        const u = await atLeast(accountApi.changeFullName(draft.trim()), 650)
+        setFullName(u.fullName)
+      }
       setState((p) => ({ draft: null, save: 'saved', ticks: p.ticks + 1 }))
     } catch (e) {
       setState({ save: 'idle', error: e.message })
@@ -48,7 +53,7 @@ export default function AccountSettingsPage() {
     good: !bad,
     describedBy: bad ? 'e-username' : 'h-username',
     saveOff: bad || !dirty || s.save === 'saving',
-    saveLabel: s.save === 'saving' ? 'Saving' : 'Save username',
+    saveLabel: s.save === 'saving' ? 'Saving' : USE_MOCKS ? 'Save username' : 'Save name',
     showDirty: dirty && !bad && s.save !== 'saving',
     showSaved: s.save === 'saved' && !dirty,
     save,
@@ -109,7 +114,7 @@ export default function AccountSettingsPage() {
           </h2>
           <div style={{ display: "flex", flexDirection: "column", maxWidth: "560px" }}>
             <label htmlFor="f-username" style={{ fontSize: "14px", fontWeight: "500" }}>
-              {canEdit ? 'Username' : 'Name'}
+              {USE_MOCKS ? 'Username' : 'Name'}
             </label>
             <input id="f-username" className="a-field" type="text" autoComplete="nickname" value={v.draft} onChange={v.typed} readOnly={!canEdit} aria-invalid={v.bad} aria-describedby={v.describedBy} style={{ marginTop: "8px", width: "100%", maxWidth: "440px", height: "48px", padding: "0 14px", borderRadius: "12px", border: "1px solid var(--night-edge)", background: "var(--night-field)", fontSize: "16px", fontWeight: "400", color: "var(--ivory)" }} />
             {v.bad && (
@@ -120,14 +125,14 @@ export default function AccountSettingsPage() {
                     <path d="M12 10v4.5" />
                     <path d="M12 17.2v.01" />
                   </svg>
-                  Type a username. It is the name lecturers see.
+                  {USE_MOCKS ? 'Type a username. It is the name lecturers see.' : 'Type your name.'}
                 </p>
               </>
             )}
             {v.good && (
               <>
                 <p id="h-username" style={{ marginTop: "10px", fontSize: "13.5px", lineHeight: "1.4", color: "var(--ivory-3)" }}>
-                  {canEdit ? 'Other people can have the same username.' : 'Your name comes from your AIVES account. Changing it here is not available yet.'}
+                  {USE_MOCKS ? 'Other people can have the same username.' : 'This is the name AIVES shows for your account.'}
                 </p>
               </>
             )}

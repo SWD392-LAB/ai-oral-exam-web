@@ -50,7 +50,10 @@ export const authApi = {
 
 export const accountApi = {
   get: () => api.get('/api/auth/me'),
+  // mock only: the mock server changes a username
   changeUsername: (username) => api.patch('/api/account', { username }),
+  // real API: changes the account's full name (display name in the AIVES database; Keycloak is not changed)
+  changeFullName: (fullName) => api.patch('/api/auth/me', { fullName }),
 }
 
 export const rubricApi = {
@@ -842,8 +845,6 @@ export const adminApi = {
     }
     return readAiSettings()
   },
-
-  testEndpoint: (kind, endpoint) => api.post('/api/admin/ai-settings/test', { kind, endpoint }),
 
   auditLog: async (query) => {
     const res = await api.get('/api/admin/audit-logs', query)
