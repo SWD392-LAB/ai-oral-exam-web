@@ -1,4 +1,4 @@
-import { Fragment } from 'react'
+import { Fragment, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { paths } from '../../app/routes/paths.js'
 import { adminApi } from '../../api/services.js'
@@ -19,33 +19,40 @@ const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 // change roles and deactivate accounts (F7). Exam records of deactivated accounts are kept.
 export default function AdminUsersPage() {
   const { user: me } = useAuth()
-  const { data: users, setData } = useLoad(() => adminApi.users(), [])
-  const { later, clear } = useTimeouts()
   const [m, set] = useMergeState({
     open: false, closing: false, fEmail: '', fName: '', fRole: 'Lecturer', fCode: '', err: {}, sending: false, sent: false, sentTo: '',
     editing: null, editVal: '', editCode: '', roleErr: '', confirm: null, confirmClosing: false, busy: false,
-    just: null, arrive: null, totalFlip: 0, fr: 'all', fs: 'all', q: '', flip: 0, error: null,
+    just: null, arrive: null, totalFlip: 0, fr: 'all', fs: 'all', q: '', dq: '', page: 1, flip: 0, error: null,
   })
-  const all = (users ?? []).slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+  // The backend filters and pages: search, role and active status go with the request, ten accounts per page.
+  const { data: pageData, setData, reload } = useLoad(() => adminApi.usersPage({
+    page: m.page,
+    pageSize: SHOWN,
+    search: m.dq.trim(),
+    role: m.fr === 'all' ? undefined : m.fr,
+    active: m.fs === 'Active' ? true : m.fs === 'Deactivated' ? false : undefined,
+  }), [m.page, m.fr, m.fs, m.dq])
+  const { later, clear } = useTimeouts()
+  // typing in the search box asks the backend only after a short pause, from the first page
+  useEffect(() => {
+    if (m.q === m.dq) return undefined
+    const id = setTimeout(() => set({ dq: m.q, page: 1 }), 300)
+    return () => clearTimeout(id)
+  }, [m.q, m.dq, set])
+  const users = pageData?.items ?? null
+  const total = pageData?.totalCount ?? 0
+  const totalPages = pageData?.totalPages ?? 1
   const statusOf = (u) => (!u.active ? 'Deactivated' : !u.hasPassword && u.setupSentAt ? 'Setup link sent' : 'Active')
-  const visibleIn = (st) => {
-    const q = st.q.trim().toLowerCase()
-    return all.filter((u) => (st.fr === 'all' || u.role === st.fr) && (st.fs === 'all' || statusOf(u) === st.fs)
-      && (!q || `${u.fullName} ${u.accountName ?? ''} ${u.email}`.toLowerCase().includes(q))).slice(0, SHOWN)
-  }
-  const shownUsers = visibleIn(m)
-  const filter = (patch) => {
-    const next = { ...m, ...patch }
-    const changed = visibleIn(m).map((u) => u.id).join() !== visibleIn(next).map((u) => u.id).join()
-    set({ ...patch, ...(changed ? { flip: m.flip + 1, arrive: null } : {}) })
-  }
-  const replace = (u) => setData((list) => list.map((x) => (x.id === u.id ? u : x)))
+  const shownUsers = (users ?? []).filter((u) => m.fs === 'all' || statusOf(u) === m.fs)
+  const filter = (patch) => set({ ...patch, page: 1, flip: m.flip + 1, arrive: null })
+  const goToPage = (page) => set({ page, flip: m.flip + 1, arrive: null, editing: null, confirm: null })
+  const replace = (u) => setData((d) => ({ ...d, items: d.items.map((x) => (x.id === u.id ? u : x)) }))
   const create = async () => {
     if (m.sending) return
     const email = m.fEmail.trim(), name = m.fName.trim(), err = {}
     if (!email) err.email = 'Enter an email address.'
     else if (!EMAIL_RE.test(email)) err.email = 'Enter an email address like name@example.com.'
-    else if (all.some((u) => u.email.toLowerCase() === email.toLowerCase())) err.email = 'An account already uses this email.'
+    // an email already used by an account on another page is refused by the API (email_exists) and shown below
     if (!name) err.name = 'Enter the full name.'
     // the API requires a student code for a student and a lecturer code for a lecturer
     const code = m.fCode.trim()
@@ -54,8 +61,10 @@ export default function AdminUsersPage() {
     set({ err: {}, sending: true, sent: false })
     try {
       const u = await atLeast(adminApi.createUser(name, email, m.fRole, code), 900)
-      setData((list) => [...list, u])
-      set((p) => ({ sending: false, sent: true, sentTo: email, fEmail: '', fName: '', fRole: 'Lecturer', fCode: '', totalFlip: p.totalFlip + 1, just: { id: u.id, f: 'new' }, arrive: u.id, fr: 'all', fs: 'all', q: '' }))
+      // show the first page again with no filter (the list is ordered by name, the new account may be on a later page)
+      const alreadyThere = m.page === 1 && m.fr === 'all' && m.fs === 'all' && m.dq === ''
+      set((p) => ({ sending: false, sent: true, sentTo: email, fEmail: '', fName: '', fRole: 'Lecturer', fCode: '', totalFlip: p.totalFlip + 1, just: { id: u.id, f: 'new' }, arrive: u.id, fr: 'all', fs: 'all', q: '', dq: '', page: 1 }))
+      if (alreadyThere) reload(true)
     } catch (e) {
       set({ sending: false, err: String(e.code ?? '').includes('code') ? { code: e.message } : { email: e.message } })
     }
@@ -158,7 +167,8 @@ export default function AdminUsersPage() {
   }
   const filtered = m.fr !== 'all' || m.fs !== 'all' || m.q.trim() !== ''
   const open = m.open
-  const total = all.length
+  const from = total === 0 ? 0 : (m.page - 1) * SHOWN + 1
+  const to = (m.page - 1) * SHOWN + shownUsers.length
   const v = {
     rows: shownUsers.map(row),
     total: total.toString(),
@@ -198,7 +208,11 @@ export default function AdminUsersPage() {
     setQ: (e) => filter({ q: e.target.value }),
     clear: () => { if (filtered) filter({ fr: 'all', fs: 'all', q: '' }) },
     clearOff: filtered ? 'false' : 'true',
-    countText: filtered ? (shownUsers.length === 1 ? '1 user matches' : `${shownUsers.length} users match`) : `Showing ${shownUsers.length} of ${total} users`,
+    countText: total <= SHOWN ? (filtered ? (total === 1 ? '1 user matches' : `${total} users match`) : `Showing ${total} of ${total} users`) : `Showing ${from}–${to} of ${total} ${filtered ? 'matching ' : ''}users`,
+    page: m.page, totalPages, pagerShown: totalPages > 1,
+    prevOff: m.page <= 1 ? 'true' : 'false', nextOff: m.page >= totalPages ? 'true' : 'false',
+    prev: () => { if (m.page > 1) goToPage(m.page - 1) },
+    next: () => { if (m.page < totalPages) goToPage(m.page + 1) },
     emptyDisplay: users && shownUsers.length === 0 ? 'table-row' : 'none',
   }
   return (
@@ -628,6 +642,19 @@ export default function AdminUsersPage() {
             </table>
           </div>
         </section>
+        {v.pagerShown && (
+          <nav aria-label="Pages of users" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "12px" }}>
+            <button type="button" className="a-btn a-btn-quiet" aria-disabled={v.prevOff} onClick={v.prev} style={{ height: "44px", padding: "0 14px", border: "0", borderRadius: "10px", background: "transparent", fontSize: "15px", fontWeight: "500", color: "var(--ink-2)" }}>
+              Previous
+            </button>
+            <span className="a-num" aria-live="polite" style={{ fontSize: "13.5px", color: "var(--ink-3)" }}>
+              Page {v.page} of {v.totalPages}
+            </span>
+            <button type="button" className="a-btn a-btn-quiet" aria-disabled={v.nextOff} onClick={v.next} style={{ height: "44px", padding: "0 14px", border: "0", borderRadius: "10px", background: "transparent", fontSize: "15px", fontWeight: "500", color: "var(--ink-2)" }}>
+              Next
+            </button>
+          </nav>
+        )}
         <SampleNote style={{ marginTop: '32px', paddingTop: '0', fontSize: '13px', color: 'var(--ink-3)' }}>All names, emails and counts on this page are sample data.</SampleNote>
       </main>
     </div>

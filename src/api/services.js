@@ -446,10 +446,9 @@ export const examConfigApi = {
   },
 
   list: async () => {
-    const res = await api.get('/api/exam-sessions')
+    const res = await fetchAllPages('/api/exam-sessions')
     const now = new Date()
-    // the backend may answer a plain array or a paged result { items, page, pageSize, totalCount, totalPages }
-    return (Array.isArray(res) ? res : (res?.items ?? [])).map((s) => {
+    return res.map((s) => {
       const start = s.startTime ? new Date(s.startTime) : (s.startAt ? new Date(s.startAt) : null)
       const end = s.endTime ? new Date(s.endTime) : (s.endAt ? new Date(s.endAt) : null)
       const phase = s.status === 'Draft' ? 'Draft'
@@ -673,21 +672,58 @@ export const examConfigApi = {
   },
 }
 
+// The backend answers some lists as { items, page, pageSize, totalCount, totalPages } (100 rows at most per page);
+// an older backend answers a plain array. This reads every page and returns all the rows.
+async function fetchAllPages(path, query = {}) {
+  const first = await api.get(path, { ...query, page: 1, pageSize: 100 })
+  if (Array.isArray(first)) return first
+  const rows = [...(first?.items ?? [])]
+  for (let p = 2; p <= (first?.totalPages ?? 1); p++) {
+    const next = await api.get(path, { ...query, page: p, pageSize: 100 })
+    rows.push(...(next?.items ?? []))
+  }
+  return rows
+}
+
 // Administration (F7, administrator)
+const mapUser = (u) => ({
+  id: u.id,
+  fullName: u.fullName ?? u.username ?? 'User',
+  email: u.email ?? '',
+  accountName: u.username ?? u.accountName ?? '',
+  role: u.role ?? 'Student',
+  active: u.isActive !== undefined ? u.isActive : (u.active !== undefined ? u.active : true),
+  googleLinked: u.googleLinked ?? false,
+  createdAt: u.createdAt,
+})
 export const adminApi = {
-  users: async () => {
-    const res = await api.get('/api/admin/users')
-    // the backend may answer a plain array or a paged result { items, page, pageSize, totalCount, totalPages }
-    return (Array.isArray(res) ? res : (res?.items ?? [])).map((u) => ({
-      id: u.id,
-      fullName: u.fullName ?? u.username ?? 'User',
-      email: u.email ?? '',
-      accountName: u.username ?? u.accountName ?? '',
-      role: u.role ?? 'Student',
-      active: u.isActive !== undefined ? u.isActive : (u.active !== undefined ? u.active : true),
-      googleLinked: u.googleLinked ?? false,
-      createdAt: u.createdAt,
-    }))
+  // Every user (all pages).
+  users: async () => (await fetchAllPages('/api/admin/users')).map(mapUser),
+
+  // One page of users, filtered by the backend: { items, page, pageSize, totalCount, totalPages }.
+  usersPage: async ({ page = 1, pageSize = 10, search, role, active } = {}) => {
+    const res = await api.get('/api/admin/users', { page, pageSize, search, role, active })
+    if (!Array.isArray(res)) {
+      return {
+        items: (res?.items ?? []).map(mapUser),
+        page: res?.page ?? page,
+        pageSize: res?.pageSize ?? pageSize,
+        totalCount: res?.totalCount ?? 0,
+        totalPages: res?.totalPages ?? 1,
+      }
+    }
+    // a backend without paging: filter and cut the page here
+    const q = (search ?? '').trim().toLowerCase()
+    const rows = res.map(mapUser).filter((u) => (!role || u.role === role)
+      && (active === undefined || u.active === active)
+      && (!q || `${u.fullName} ${u.accountName} ${u.email}`.toLowerCase().includes(q)))
+    return {
+      items: rows.slice((page - 1) * pageSize, page * pageSize),
+      page,
+      pageSize,
+      totalCount: rows.length,
+      totalPages: Math.max(1, Math.ceil(rows.length / pageSize)),
+    }
   },
 
   // The API creates the Keycloak account and takes the id from it; a student needs studentCode, a lecturer lecturerCode.
