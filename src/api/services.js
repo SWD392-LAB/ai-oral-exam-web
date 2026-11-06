@@ -448,7 +448,8 @@ export const examConfigApi = {
   list: async () => {
     const res = await api.get('/api/exam-sessions')
     const now = new Date()
-    return (Array.isArray(res) ? res : []).map((s) => {
+    // the backend may answer a plain array or a paged result { items, page, pageSize, totalCount, totalPages }
+    return (Array.isArray(res) ? res : (res?.items ?? [])).map((s) => {
       const start = s.startTime ? new Date(s.startTime) : (s.startAt ? new Date(s.startAt) : null)
       const end = s.endTime ? new Date(s.endTime) : (s.endAt ? new Date(s.endAt) : null)
       const phase = s.status === 'Draft' ? 'Draft'
@@ -676,7 +677,8 @@ export const examConfigApi = {
 export const adminApi = {
   users: async () => {
     const res = await api.get('/api/admin/users')
-    return (Array.isArray(res) ? res : []).map((u) => ({
+    // the backend may answer a plain array or a paged result { items, page, pageSize, totalCount, totalPages }
+    return (Array.isArray(res) ? res : (res?.items ?? [])).map((u) => ({
       id: u.id,
       fullName: u.fullName ?? u.username ?? 'User',
       email: u.email ?? '',
