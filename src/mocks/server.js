@@ -1,7 +1,8 @@
 // Mock API: answers request() calls with the same URLs, shapes and error codes the real API will use.
 import { ApiError } from '../api/client.js'
+import { decodeJwt } from '../features/auth/oidc.js'
 import { sessionPhase } from '../utils/enums.js'
-import { addAttempt, addUser, db, generateResponses, PASSWORD, rand, splitScore } from './db.js'
+import { addAttempt, addUser, db, generateResponses, rand, splitScore } from './db.js'
 
 const LATENCY = [180, 520]
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -103,7 +104,7 @@ const sessionSummary = (s) => {
 
 const publishCheck = (s) => ({
   hasQuestion: s.questions.length > 0,
-  missingRubrics: s.questions.filter((q) => !q.rubric?.criteria).map((q) => q.id),
+  hasPlatformRubric: true,
   hasStudent: s.participants.length > 0,
   hasWindow: !!(s.startAt && s.endAt),
 })
@@ -121,6 +122,15 @@ const sessionDetail = (s) => ({
 function attemptState(a) {
   const s = sessionById(a.sessionId)
   const base = {
+    examSessionId: s.id,
+    examTitle: s.title,
+    timeLimitSeconds: s.timeLimitSeconds,
+    maxFollowUps: s.maxFollowUps,
+    totalQuestions: s.questions.length,
+    answeredQuestions: a.responses.filter(Boolean).length,
+    completedAt: a.endedAt,
+    stateVersion: 1,
+    currentTurn: null,
     attemptId: a.id, status: a.status, endReason: a.endReason, startedAt: a.startedAt, endedAt: a.endedAt,
     session: { id: s.id, title: s.title, courseCode: courseById(s.courseId).code, classCode: s.classCode, endAt: s.endAt, timeLimitSeconds: s.timeLimitSeconds, maxFollowUps: s.maxFollowUps, questionCount: s.questions.length },
     answered: a.responses.map((r, i) => ({ index: i, reached: !!r, turns: r ? r.turns.map((t) => ({ type: t.type, durationSeconds: t.dur })) : [] })),
@@ -129,9 +139,24 @@ function attemptState(a) {
   if (a.current) {
     const qq = s.questions[a.current.qIndex]
     const fu = a.current.followUps
+    const qText = fu ? (qq.followUps?.[fu - 1] ?? `Follow-up on ${qq.text}`) : qq.text
+    const turnType = fu ? 'FollowUp' : 'Main'
+    const turnId = a.current.turnId || `turn-${a.id}-${a.current.qIndex}-${fu}`
+    a.current.turnId = turnId
+    base.currentTurn = {
+      questionResponseId: `qr-${a.id}-${a.current.qIndex}`,
+      questionId: qq.id,
+      questionOrderNo: a.current.qIndex + 1,
+      turnNo: fu ? fu + 1 : 1,
+      type: turnType,
+      questionText: qText,
+      askedAt: a.current.askedAt,
+      deadlineAt: new Date(new Date(a.current.askedAt).getTime() + s.timeLimitSeconds * 1000).toISOString(),
+      turnId,
+    }
     base.current = {
       questionIndex: a.current.qIndex, questionId: qq.id, type: fu ? 'FollowUp' : 'Main', followUpNumber: fu,
-      text: fu ? qq.followUps[fu - 1] : qq.text, mainText: qq.text, short: qq.short, askedAt: a.current.askedAt,
+      text: fu ? qq.followUps[fu - 1] : qq.text, mainText: qq.text, short: qq.short, askedAt: a.current.askedAt, turnId,
     }
   }
   return base
@@ -151,21 +176,29 @@ function attemptForReview(a) {
       return { index: i, text: qq.text, maxScore: qq.rubric?.maxScore ?? 2.5, reached: !!r, ai: r?.ai ?? { score: 0, comment: 'Not reached. The session closed before this question was asked.' }, turns: r ? turnsOut(r) : [] }
     }),
     aiTotal: aiTotal(a),
-    review: a.review,
+    review: a.review ? {
+      ...a.review,
+      status: a.review.status ?? (a.status === 'Finalized' ? 'Approved' : 'Pending'),
+    } : null,
   }
 }
 
 // ---------- auth ----------
-const session = { userId: null }
+// Sign-in is Keycloak. The mock does not check the token: it only reads who it belongs to.
+// TEMPORARY (remove when the real API is connected, which verifies the Keycloak token itself):
+// the demo users of the realm "aives" stand in for existing mock users, so their screens have data.
+const KEYCLOAK_DEMO_USERS = {
+  'han.hg@aives.edu.vn': 'han', // Student: has the exam open now
+  'an.nv@aives.edu.vn': 'bich', // Lecturer: owns the sample sessions
+  'admin@aives.edu.vn': 'hoa', // Administrator
+}
 const me = (token) => {
-  const id = token?.startsWith('mock.') ? token.slice(5) : null
-  const u = id && userById(id)
+  const email = String(decodeJwt(token ?? '').email ?? '').toLowerCase()
+  const u = userById(KEYCLOAK_DEMO_USERS[email])
   if (!u || !u.active) fail('unauthorized', 'Your session has ended. Sign in again.', 401)
   return u
 }
 const requireRole = (u, ...roles) => { if (!roles.includes(u.role)) fail('forbidden', 'You do not have access to this page.', 403) }
-
-const issue = (u) => { session.userId = u.id; return { accessToken: 'mock.' + u.id, user: publicUser(u) } }
 
 // ---------- routes ----------
 const routes = []
@@ -175,84 +208,9 @@ const route = (method, pattern, handler) => {
   routes.push({ method, re, keys, handler })
 }
 
-route('POST', '/api/auth/login', ({ body }) => {
-  const login = (body?.login ?? '').trim().toLowerCase()
-  const u = db.users.find((x) => x.email.toLowerCase() === login || x.accountName?.toLowerCase() === login)
-  if (!u || !u.hasPassword || body?.password !== PASSWORD) fail('invalid_credentials', 'That account name, email or password is not right.', 401)
-  if (!u.active) fail('account_deactivated', 'This account is deactivated.', 403)
-  if (!u.emailVerified) fail('email_not_verified', 'Confirm your email first. Use the link we sent you.', 403)
-  return issue(u)
-})
-
-// Without a real Google client, the mock signs in as one Google identity: the first time creates the account
-const GOOGLE = { email: 'minh.tran@example.com', name: 'Tran Nhat Minh' }
-route('POST', '/api/auth/google', () => {
-  let u = db.users.find((x) => x.email === GOOGLE.email)
-  let firstSignIn = false
-  if (u && !u.googleLinked) fail('google_not_linked', 'This Google email belongs to an AIVES account that is not linked to Google.', 409)
-  if (u && !u.active) fail('account_deactivated', 'This account is deactivated.', 403)
-  if (!u) {
-    u = addUser({ fullName: GOOGLE.name, username: GOOGLE.email.split('@')[0], email: GOOGLE.email, googleLinked: true, hasPassword: false })
-    firstSignIn = true
-  }
-  return { ...issue(u), firstSignIn }
-})
-
-route('POST', '/api/auth/logout', () => { session.userId = null; return null })
+// ---------- health & auth ----------
+route('GET', '/health', () => ({ status: 'Healthy', database: 'Healthy' }))
 route('GET', '/api/auth/me', ({ user }) => publicUser(user))
-
-route('GET', '/api/auth/account-names/:name', ({ params }) => {
-  const name = decodeURIComponent(params.name).toLowerCase()
-  const taken = ['minhanh', 'anh.nguyen', 'admin', 'minhanh.se17'].includes(name) || db.users.some((u) => u.accountName?.toLowerCase() === name)
-  let suggestion = null
-  if (taken) { for (let i = 18; !suggestion; i++) { const c = `${name.replace(/\.se\d+$/, '')}.se${i}`; if (!db.users.some((u) => u.accountName === c)) suggestion = c } }
-  return { available: !taken, suggestion }
-})
-
-route('POST', '/api/auth/register', ({ body }) => {
-  const accountName = (body?.accountName ?? '').trim()
-  const email = (body?.email ?? '').trim().toLowerCase()
-  if (db.users.some((u) => u.accountName?.toLowerCase() === accountName.toLowerCase())) fail('account_name_taken', 'That account name is taken.', 409)
-  if (db.users.some((u) => u.email === email)) fail('email_taken', 'An account with this email already exists. Sign in, or use Forgot password.', 409)
-  const u = addUser({ fullName: accountName, username: accountName, accountName, email, emailVerified: false })
-  db.emailLinks['verify-' + u.id] = { purpose: 'EmailVerification', userId: u.id, expiresAt: new Date(Date.now() + 864e5).toISOString(), usedAt: null }
-  return { email, verifyToken: 'verify-' + u.id }
-})
-
-// Same answer whether or not the email is registered
-route('POST', '/api/auth/forgot-password', ({ body }) => {
-  const u = db.users.find((x) => x.email === (body?.email ?? '').trim().toLowerCase() && x.active)
-  if (!u) return { demoToken: null }
-  db.emailLinks['reset-' + u.id] = { purpose: u.hasPassword ? 'PasswordReset' : 'AccountSetup', userId: u.id, expiresAt: new Date(Date.now() + 36e5).toISOString(), usedAt: null }
-  // mock only: lets the demo open the link that would have been emailed
-  return { demoToken: 'reset-' + u.id }
-})
-
-const linkOf = (token) => {
-  const l = db.emailLinks[token]
-  if (!l || l.usedAt || new Date(l.expiresAt) < new Date()) fail('link_invalid', 'This link no longer works.', 410)
-  return l
-}
-route('GET', '/api/email-links/:token', ({ params }) => {
-  const l = linkOf(params.token)
-  const u = userById(l.userId)
-  if (l.purpose === 'EmailVerification') { u.emailVerified = true; l.usedAt = nowIso() }
-  return { purpose: l.purpose, email: u.email, needsAccountName: l.purpose === 'AccountSetup' && !u.accountName, accountName: u.accountName, fullName: u.fullName }
-})
-route('POST', '/api/email-links/:token', ({ params, body }) => {
-  const l = linkOf(params.token)
-  const u = userById(l.userId)
-  if (l.purpose === 'AccountSetup' && !u.accountName) {
-    const name = (body?.accountName ?? '').trim()
-    if (!name) fail('account_name_required', 'Choose an account name.')
-    if (db.users.some((x) => x.accountName?.toLowerCase() === name.toLowerCase())) fail('account_name_taken', 'That account name is taken.', 409)
-    u.accountName = name
-  }
-  u.hasPassword = true
-  u.emailVerified = true
-  l.usedAt = nowIso()
-  return { purpose: l.purpose, accountName: u.accountName, email: u.email }
-})
 
 // ---------- account ----------
 route('GET', '/api/account', ({ user }) => publicUser(user))
@@ -263,14 +221,33 @@ route('PATCH', '/api/account', ({ user, body }) => {
   user.username = name
   return publicUser(user)
 })
-route('POST', '/api/account/setup-link', ({ user }) => {
-  db.emailLinks['setup-' + user.id] = { purpose: 'AccountSetup', userId: user.id, expiresAt: new Date(Date.now() + 864e5).toISOString(), usedAt: null }
-  user.setupSentAt = nowIso()
-  return { sentTo: user.email }
-})
-route('POST', '/api/account/google-link', ({ user }) => { user.googleLinked = true; return publicUser(user) })
 
 // ---------- student ----------
+route('GET', '/api/interview/my-sessions', ({ user }) => {
+  requireRole(user, 'Student')
+  return db.sessions
+    .filter((s) => s.status === 'Published' && s.participants.includes(user.id))
+    .map((s) => {
+      const a = db.attempts.find((x) => x.sessionId === s.id && x.studentId === user.id)
+      const c = courseById(s.courseId)
+      const phase = sessionPhase(s)
+      return {
+        examSessionId: s.id,
+        courseCode: c?.code ?? 'SWD392',
+        title: s.title,
+        startTime: s.startAt,
+        endTime: s.endAt,
+        sessionStatus: s.status,
+        isOpenNow: phase === 'Open now',
+        questionCount: s.questions.length,
+        timeLimitPerAnswerSeconds: s.timeLimitSeconds,
+        participantStatus: a ? (a.status === 'InProgress' ? 'InProgress' : 'Completed') : 'Registered',
+        latestAttemptId: a?.id ?? null,
+        latestAttemptStatus: a?.status ?? null,
+      }
+    })
+})
+
 route('GET', '/api/student/exam-sessions', ({ user }) => {
   requireRole(user, 'Student')
   return db.sessions
@@ -322,22 +299,22 @@ route('POST', '/api/interview-attempts/:id/responses', ({ user, params, body }) 
   const r = a.responses[cur.qIndex]
   r.turns.push({ type: cur.followUps ? 'FollowUp' : 'Main', question: cur.followUps ? qq.followUps[cur.followUps - 1] : qq.text, answer, dur, at: nowIso() })
 
-  if (sessionPhase(s) === 'Closed') { finishAttempt(a, 'SessionClosed', s.endAt); return { outcome: 'Completed', state: attemptState(a) } }
+  if (sessionPhase(s) === 'Closed') { finishAttempt(a, 'SessionClosed', s.endAt); const st = attemptState(a); return { outcome: 'Completed', timedOut: false, attempt: st, state: st } }
 
   const words = answer.split(/\s+/).filter(Boolean).length
   const sufficient = words >= 25 || cur.followUps >= s.maxFollowUps || cur.followUps >= (qq.followUps?.length ?? 0)
   if (!sufficient) {
-    a.current = { qIndex: cur.qIndex, followUps: cur.followUps + 1, askedAt: nowIso() }
-    return { outcome: 'FollowUp', state: attemptState(a) }
+    a.current = { qIndex: cur.qIndex, followUps: cur.followUps + 1, askedAt: nowIso(), turnId: 'turn-' + Date.now().toString(36) }
+    const st = attemptState(a); return { outcome: 'FollowUp', timedOut: false, attempt: st, state: st }
   }
   r.ai = scoreAnswer(qq, r.turns)
   if (cur.qIndex + 1 < s.questions.length) {
-    a.current = { qIndex: cur.qIndex + 1, followUps: 0, askedAt: nowIso() }
+    a.current = { qIndex: cur.qIndex + 1, followUps: 0, askedAt: nowIso(), turnId: 'turn-' + Date.now().toString(36) }
     a.responses[cur.qIndex + 1] = { questionId: s.questions[cur.qIndex + 1].id, turns: [], ai: null }
-    return { outcome: 'NextQuestion', state: attemptState(a) }
+    const st = attemptState(a); return { outcome: 'NextQuestion', timedOut: false, attempt: st, state: st }
   }
   finishAttempt(a, 'Completed')
-  return { outcome: 'Completed', state: attemptState(a) }
+  const finalSt = attemptState(a); return { outcome: 'Completed', timedOut: false, attempt: finalSt, state: finalSt }
 })
 
 route('GET', '/api/interview-attempts/:id/report', ({ user, params }) => {
@@ -353,6 +330,38 @@ route('GET', '/api/interview-attempts/:id/report', ({ user, params }) => {
 // ---------- lecturer ----------
 const lecturerCourses = (u) => db.courses.filter((c) => u.role === 'Administrator' || c.lecturerIds.includes(u.id))
 const canSee = (u, s) => lecturerCourses(u).some((c) => c.id === s.courseId)
+
+route('GET', '/api/platform-rubric', () => ({
+  id: 'mock-platform-rubric-v1',
+  templateId: 'mock-platform-template-v1',
+  courseId: null,
+  versionNo: 1,
+  maxScore: 10.0,
+  isSealed: true,
+  isActive: true,
+  createdBy: 'admin',
+  createdAt: '2026-11-01T10:00:00Z',
+  criteria: [
+    {
+      id: 'crit-1',
+      orderNo: 1,
+      description: 'Kiến thức chuyên môn và độ chính xác của câu trả lời',
+      maxPoints: 4.0,
+    },
+    {
+      id: 'crit-2',
+      orderNo: 2,
+      description: 'Khả năng phân tích, phản biện và trả lời câu hỏi xoáy',
+      maxPoints: 3.5,
+    },
+    {
+      id: 'crit-3',
+      orderNo: 3,
+      description: 'Phong thái, cấu trúc trình bày và sự tự tin',
+      maxPoints: 2.5,
+    },
+  ],
+}))
 
 route('GET', '/api/lecturer/courses', ({ user }) => { requireRole(user, 'Lecturer'); return lecturerCourses(user).map((c) => ({ id: c.id, code: c.code, name: c.name })) })
 
@@ -419,6 +428,202 @@ route('DELETE', '/api/exam-sessions/:id/questions/:qid', ({ user, params }) => {
   return sessionDetail(s)
 })
 
+// Question Bank API routes
+route('GET', '/api/courses/:courseId/question-bank', ({ params, query }) => {
+  const cid = String(params.courseId).toLowerCase()
+  let list = (db.questionBank ?? []).filter((q) => q.courseId.toLowerCase() === cid)
+  if (query?.status && query.status !== 'All') {
+    list = list.filter((q) => q.status === query.status)
+  }
+  return list
+})
+
+route('GET', '/api/courses/:courseId/question-bank/:itemId', ({ params }) => {
+  const item = (db.questionBank ?? []).find((q) => q.id === params.itemId) ?? fail('question_bank_not_found', 'Question not found in bank.', 404)
+  return item
+})
+
+route('POST', '/api/courses/:courseId/question-bank', ({ params, body }) => {
+  const cid = String(params.courseId).toLowerCase()
+  const topic = String(body?.topic ?? '').trim()
+  const bloom = body?.bloom ?? 'Understand'
+  const content = String(body?.content ?? '').trim()
+  if (!topic || !content) fail('question_bank_invalid', 'Topic and content are required.')
+  const duplicate = (db.questionBank ?? []).some((q) => q.courseId.toLowerCase() === cid && q.content.trim().toLowerCase() === content.toLowerCase())
+  if (duplicate) fail('question_bank_duplicate', 'Nội dung câu hỏi đã tồn tại trong môn học.', 409)
+  const item = {
+    id: 'qb-' + Date.now().toString(36),
+    courseId: params.courseId,
+    topic,
+    bloom,
+    content,
+    origin: 'Manual',
+    status: 'Draft',
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+    revisions: [
+      { id: 'rev-' + Date.now().toString(36), revisionNo: 1, content, createdAt: nowIso() },
+    ],
+  }
+  if (!db.questionBank) db.questionBank = []
+  db.questionBank.unshift(item)
+  return item
+})
+
+route('PUT', '/api/courses/:courseId/question-bank/:itemId', ({ params, body }) => {
+  const item = (db.questionBank ?? []).find((q) => q.id === params.itemId) ?? fail('question_bank_not_found', 'Question not found.', 404)
+  if (item.status !== 'Draft') fail('question_bank_locked', 'Chỉ câu hỏi nháp mới được chỉnh sửa.', 409)
+  const topic = String(body?.topic ?? item.topic).trim()
+  const bloom = body?.bloom ?? item.bloom
+  const content = String(body?.content ?? item.content).trim()
+  item.topic = topic
+  item.bloom = bloom
+  item.content = content
+  item.updatedAt = nowIso()
+  const revNo = (item.revisions?.length ?? 0) + 1
+  if (!item.revisions) item.revisions = []
+  item.revisions.push({ id: 'rev-' + Date.now().toString(36), revisionNo: revNo, content, createdAt: nowIso() })
+  return item
+})
+
+route('POST', '/api/courses/:courseId/question-bank/:itemId/approve', ({ params }) => {
+  const item = (db.questionBank ?? []).find((q) => q.id === params.itemId) ?? fail('question_bank_not_found', 'Question not found.', 404)
+  if (item.status !== 'Draft') fail('question_bank_not_draft', 'Chỉ câu hỏi nháp mới được duyệt.', 409)
+  item.status = 'Approved'
+  item.updatedAt = nowIso()
+  return item
+})
+
+route('POST', '/api/courses/:courseId/question-bank/:itemId/reject', ({ params }) => {
+  const item = (db.questionBank ?? []).find((q) => q.id === params.itemId) ?? fail('question_bank_not_found', 'Question not found.', 404)
+  if (item.status !== 'Draft') fail('question_bank_not_draft', 'Chỉ câu hỏi nháp mới được từ chối.', 409)
+  item.status = 'Rejected'
+  item.updatedAt = nowIso()
+  return item
+})
+
+// Course Materials routes
+route('GET', '/api/courses/:courseId/materials', ({ params }) => {
+  const cid = String(params.courseId).toLowerCase()
+  return (db.courseMaterials ?? []).filter((m) => m.courseId.toLowerCase() === cid)
+})
+
+route('POST', '/api/courses/:courseId/materials', ({ params, body }) => {
+  const mat = {
+    id: 'mat-' + Date.now().toString(36),
+    courseId: params.courseId,
+    fileName: body?.fileName ?? 'Uploaded_Material.pdf',
+    contentType: 'application/pdf',
+    sizeBytes: 1850000,
+    sha256: 'mock-sha256-' + Date.now().toString(36),
+    status: 'Pending',
+    ingestError: null,
+    createdAt: nowIso(),
+  }
+  if (!db.courseMaterials) db.courseMaterials = []
+  db.courseMaterials.unshift(mat)
+  return mat
+})
+
+route('POST', '/api/courses/:courseId/materials/:materialId/ingest', ({ params }) => {
+  const mat = (db.courseMaterials ?? []).find((m) => m.id === params.materialId)
+  if (!mat) fail('material_not_found', 'Tài liệu không tồn tại.', 404)
+  mat.status = 'Ready'
+  return mat
+})
+
+// Question Generation route
+route('POST', '/api/courses/:courseId/question-bank/generations', ({ params, body }) => {
+  const cid = String(params.courseId).toLowerCase()
+  const topic = String(body?.topic ?? '').trim()
+  const bloom = body?.bloom ?? 'Understand'
+  const count = Math.min(20, Math.max(1, Number(body?.count) || 3))
+  const platformRubricVersionId = body?.platformRubricVersionId ?? '44444444-0000-0000-0000-000000000001'
+  const sourceMaterialIds = body?.sourceMaterialIds ?? []
+
+  if (!topic) fail('topic_required', 'Chủ đề là bắt buộc.')
+
+  const drafts = []
+  for (let i = 1; i <= count; i++) {
+    const draftId = 'ai-draft-' + Date.now().toString(36) + '-' + i
+    const content = `[${bloom}] Hãy giải thích và phân tích sâu về "${topic}" trong bối cảnh kiến trúc hệ thống (Câu hỏi AI sinh #${i}).`
+    const citations = sourceMaterialIds.length > 0 ? [
+      {
+        sourceId: sourceMaterialIds[0],
+        sourceIndex: 1,
+        quote: `Tài liệu giáo trình đề cập chi tiết đến ${topic} và các nguyên tắc thiết kế cốt lõi.`,
+      },
+    ] : []
+
+    const draft = {
+      draftId,
+      orderNo: i,
+      content,
+      bloom,
+      status: 'Draft',
+      platformRubricVersionId,
+      citations,
+    }
+    drafts.push(draft)
+
+    // Tự động lưu vào questionBank
+    if (!db.questionBank) db.questionBank = []
+    db.questionBank.unshift({
+      id: draftId,
+      courseId: params.courseId,
+      topic,
+      bloom,
+      content,
+      origin: 'Ai',
+      status: 'Draft',
+      citations,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+      revisions: [
+        { id: 'rev-' + draftId, revisionNo: 1, content, createdAt: nowIso() },
+      ],
+    })
+  }
+
+  return {
+    courseId: params.courseId,
+    provider: 'MockAI',
+    status: 'Success',
+    drafts,
+  }
+})
+
+route('POST', '/api/exam-sessions/:id/questions/from-bank', ({ user, params, body }) => {
+  const s = ownSession(user, params.id)
+  if (s.status !== 'Draft') fail('exam_session_locked', 'A published session cannot be changed.', 409)
+  const itemIds = Array.isArray(body?.itemIds) ? body.itemIds : []
+  const attachedIds = []
+  for (const itemId of itemIds) {
+    const item = (db.questionBank ?? []).find((q) => q.id === itemId)
+    if (!item) continue
+    if (item.status !== 'Approved') fail('question_bank_item_not_approved', 'Only approved questions can be attached.', 409)
+    const exists = s.questions.some((q) => q.bankItemId === itemId || (q.text && q.text.trim() === item.content.trim()))
+    if (!exists) {
+      s.questions.push({
+        id: `${s.id}q${s.questions.length + 1}`,
+        orderNo: s.questions.length + 1,
+        text: item.content,
+        content: item.content,
+        short: item.content.length > 40 ? item.content.slice(0, 40) + '…' : item.content,
+        bankItemId: item.id,
+        rubric: null,
+      })
+      attachedIds.push(item.id)
+    }
+  }
+  return attachedIds
+})
+
+route('GET', '/api/exam-sessions/:id/questions', ({ user, params }) => {
+  const s = ownSession(user, params.id)
+  return s.questions
+})
+
 // rows: [{ studentCode, name, email }]; rows that match no account are skipped and reported
 route('POST', '/api/exam-sessions/:id/participants/import', ({ user, params, body }) => {
   const s = ownSession(user, params.id)
@@ -436,7 +641,7 @@ route('POST', '/api/exam-sessions/:id/participants/import', ({ user, params, bod
 route('POST', '/api/exam-sessions/:id/publish', ({ user, params }) => {
   const s = ownSession(user, params.id)
   const c = publishCheck(s)
-  if (!c.hasQuestion || c.missingRubrics.length || !c.hasStudent || !c.hasWindow) fail('exam_session_not_ready', 'This session is not ready to publish.', 409, c)
+  if (!c.hasQuestion || !c.hasStudent || !c.hasWindow) fail('exam_session_not_ready', 'This session is not ready to publish.', 409, c)
   s.status = 'Published'
   s.publishedAt = nowIso()
   return sessionDetail(s)
@@ -468,6 +673,34 @@ route('GET', '/api/interview-attempts/:id/review', ({ user, params }) => {
   return { ...attemptForReview(a), next: next ? { id: next.id, fullName: userById(next.studentId).fullName, endReason: next.endReason, endedAt: next.endedAt } : null }
 })
 
+route('PUT', '/api/interview-attempts/:id/score-review/draft', ({ user, params, body }) => {
+  requireRole(user, 'Lecturer')
+  const a = attemptById(params.id)
+  ownSession(user, a.sessionId)
+  if (a.status === 'InProgress') fail('attempt_not_finished', 'This attempt is still in progress.', 409)
+  const v = Number(body?.finalScore)
+  if (!(v >= 0 && v <= 10) || Math.abs(v * 4 - Math.round(v * 4)) > 1e-9) fail('final_score_invalid', 'Use a score from 0 to 10 in steps of 0.25.')
+  a.review = { finalScore: v, comment: String(body?.comment ?? '').trim(), confirmedAt: nowIso(), reviewerId: user.id, status: 'Pending' }
+  return { finalScore: v, comment: a.review.comment, status: 'Pending', reviewedAt: a.review.confirmedAt }
+})
+
+route('POST', '/api/interview-attempts/:id/score-review/confirm', ({ user, params }) => {
+  requireRole(user, 'Lecturer')
+  const a = attemptById(params.id)
+  ownSession(user, a.sessionId)
+  if (a.status === 'InProgress') fail('attempt_not_finished', 'This attempt is still in progress.', 409)
+  const v = a.review?.finalScore ?? aiTotal(a)
+  a.review = {
+    finalScore: v,
+    comment: a.review?.comment ?? '',
+    confirmedAt: nowIso(),
+    reviewerId: user.id,
+    status: 'Approved',
+  }
+  a.status = 'Finalized'
+  return { finalScore: v, comment: a.review.comment, status: 'Approved', reviewedAt: a.review.confirmedAt }
+})
+
 route('PUT', '/api/interview-attempts/:id/score-review', ({ user, params, body }) => {
   requireRole(user, 'Lecturer')
   const a = attemptById(params.id)
@@ -475,7 +708,7 @@ route('PUT', '/api/interview-attempts/:id/score-review', ({ user, params, body }
   if (a.status === 'InProgress') fail('attempt_not_finished', 'This attempt is still in progress.', 409)
   const v = Number(body?.finalScore)
   if (!(v >= 0 && v <= 10) || Math.abs(v * 4 - Math.round(v * 4)) > 1e-9) fail('final_score_invalid', 'Use a score from 0 to 10 in steps of 0.25.')
-  a.review = { finalScore: v, comment: String(body?.comment ?? '').trim(), confirmedAt: nowIso(), reviewerId: user.id }
+  a.review = { finalScore: v, comment: String(body?.comment ?? '').trim(), confirmedAt: nowIso(), reviewerId: user.id, status: 'Approved' }
   a.status = 'Finalized'
   return attemptForReview(a)
 })
@@ -593,8 +826,6 @@ route('GET', '/api/admin/audit-logs', ({ user }) => {
 })
 
 // ---------- dispatcher ----------
-const PUBLIC = ['/api/auth/login', '/api/auth/google', '/api/auth/register', '/api/auth/forgot-password', '/api/auth/account-names/', '/api/email-links/']
-
 export async function handleMock(method, url, body, token) {
   const [path, qs] = url.split('?')
   const query = Object.fromEntries(new URLSearchParams(qs ?? ''))
@@ -605,8 +836,7 @@ export async function handleMock(method, url, body, token) {
     const m = path.match(r.re)
     if (!m) continue
     const params = Object.fromEntries(r.keys.map((k, i) => [k, m[i + 1]]))
-    const isPublic = PUBLIC.some((p) => path.startsWith(p))
-    const user = isPublic ? null : me(token)
+    const user = me(token)
     return clone(r.handler({ params, query, body, user }))
   }
   fail('not_found', `No mock for ${method} ${path}`, 404)

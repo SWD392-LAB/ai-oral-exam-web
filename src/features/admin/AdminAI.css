@@ -1,7 +1,7 @@
 /* AdminAI only (from the wireframe helmet), scoped to .pg-adminai */
 .pg-adminai .ai-unveil {animation:ai-unveil .7s cubic-bezier(0.16,1,0.3,1) .06s backwards}
 .pg-adminai .ai-in-2 {animation:aives-rise .4s cubic-bezier(0.34,1.32,0.64,1) .12s backwards}
-.pg-adminai .ai-open {animation:ai-open .45s cubic-bezier(0.16,1,0.3,1) backwards}
+.pg-adminai .ai-open {animation:aives-unfold .45s cubic-bezier(0.16,1,0.3,1) backwards}
 .pg-adminai .ai-sr {position:absolute;width:1px;height:1px;margin:0;opacity:0;pointer-events:none}
 .pg-adminai .ai-opt {cursor:pointer;transition:color .2s ease-out}
 .pg-adminai .ai-opt:hover {color:rgba(246,241,231,0.86) !important}
@@ -9,11 +9,9 @@
 .pg-adminai .ai-bar {transition:height .4s cubic-bezier(0.34,1.32,0.64,1),background-color .25s ease-out}
 .pg-adminai .ai-glow {transition:opacity .8s ease-out}
 .pg-adminai .ai-glow-on {animation:ai-breathe 2.6s ease-in-out infinite}
-.pg-adminai .ai-spin {transform-origin:center;animation:ai-spin .9s linear infinite}
+.pg-adminai .ai-spin {transform-origin:center;animation:aives-spin .9s linear infinite}
 @keyframes ai-unveil{from{clip-path:circle(0% at 100% 0%)}to{clip-path:circle(150% at 100% 0%)}}
-@keyframes ai-open{from{opacity:0;clip-path:inset(0 0 100% 0);transform:translateY(-6px)}to{opacity:1;clip-path:inset(0 0 0 0);transform:none}}
 @keyframes ai-breathe{0%,100%{transform:scale(.94)}50%{transform:scale(1.06)}}
-@keyframes ai-spin{to{transform:rotate(360deg)}}
 @media (max-width: 760px) {
   .pg-adminai .ai-lang {font-size:30px !important}
   .pg-adminai .ai-inset {padding:22px 20px 22px !important}

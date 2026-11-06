@@ -1,0 +1,17 @@
+GIÁO TRÌNH MÔN HỌC SWD392 - KIẾN TRÚC VÀ THIẾT KẾ PHẦN MỀM (SOFTWARE ARCHITECTURE & DESIGN)
+
+Chương 1: Kiến trúc Microservices và Domain-Driven Design (DDD)
+1.1 Khái niệm cơ bản về Microservices
+Microservices là một phong cách kiến trúc phần mềm trong đó một ứng dụng lớn được chia nhỏ thành một tập hợp các dịch vụ nhỏ, độc lập, có thể triển khai riêng biệt và tập trung vào một năng lực kinh doanh cụ thể. Mỗi microservice sở hữu cơ sở dữ liệu riêng của mình (Database-per-Service pattern) để đảm bảo tính độc lập và giảm sự gắn kết chặt chẽ (loose coupling).
+
+1.2 Domain-Driven Design (DDD) trong thiết kế Microservices
+DDD cung cấp phương pháp tiếp cận mô hình hóa miền nghiệp vụ phức tạp.
+- Bounded Context (Ngữ cảnh bị giới hạn): Ranh giới rõ ràng trong đó một mô hình miền áp dụng. Mỗi microservice lý tưởng sẽ ánh xạ tới một Bounded Context duy nhất.
+- Aggregate & Aggregate Root: Cụm các đối tượng miền liên quan được coi là một đơn vị phục vụ tính toàn vẹn dữ liệu. Mọi truy cập vào Aggregate phải thông qua Aggregate Root.
+- Domain Events: Sự kiện đại diện cho điều gì đó có ý nghĩa đã xảy ra trong miền nghiệp vụ (ví dụ: OrderPlaced, PaymentCompleted).
+
+1.3 Giao tiếp giữa các Dịch vụ
+- Giao tiếp đồng bộ (Synchronous): Sử dụng REST API hoặc gRPC cho các yêu cầu đọc dữ liệu hoặc các thao tác cần phản hồi tức thì.
+- Giao tiếp bất đồng bộ (Asynchronous): Sử dụng Message Broker (RabbitMQ, Apache Kafka) và mẫu hình Publish-Subscribe để xử lý các nghiệp vụ dài hạn, giảm độ trễ và đảm bảo tính sẵn sàng cao.
+- Mẫu kiến trúc CQRS (Command Query Responsibility Segregation): Tách biệt mô hình ghi (Command) và mô hình đọc (Query) nhằm tối ưu hóa hiệu năng và khả năng mở rộng.
+- Mẫu Saga: Quản lý giao dịch phân tán giữa nhiều dịch vụ thông qua chuỗi các giao dịch cục bộ và các hành động bù trừ (Compensating Transactions) khi có lỗi.

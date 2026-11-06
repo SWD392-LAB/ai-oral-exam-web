@@ -15,7 +15,7 @@ const navStyle = (current, night) => ({
 function SignOut({ color }) {
   const { signOut } = useAuth()
   return (
-    <Link className="a-link" to={paths.signIn} onClick={() => signOut()} style={{ color }}>
+    <Link className="a-link" to={paths.signIn} onClick={(e) => { e.preventDefault(); signOut() }} style={{ color }}>
       Sign out
     </Link>
   )
@@ -23,6 +23,7 @@ function SignOut({ color }) {
 
 const LECTURER_NAV = [
   ['sessions', paths.sessions, 'Exam sessions', 'Sessions'],
+  ['questionBank', paths.questionBank, 'Question bank', 'Bank'],
   ['results', paths.results, 'Results and review', 'Results'],
   ['statistics', paths.statistics, 'Class statistics', 'Statistics'],
   ['account', paths.account, 'Account settings', 'Account'],

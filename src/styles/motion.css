@@ -20,3 +20,7 @@
 @keyframes aives-settle{from{border-color:var(--gold-edge);transform:scale(.985)}to{transform:none}}
 @keyframes aives-turn-out-s{from{transform:translateZ(-320px) rotateY(0deg) translateZ(320px)}to{transform:translateZ(-320px) rotateY(-28deg) translateZ(320px)}}
 @keyframes aives-turn-in-s{from{transform:translateZ(-320px) rotateY(28deg) translateZ(320px)}to{transform:translateZ(-320px) rotateY(0deg) translateZ(320px)}}
+
+/* Inline panels open top-down (Unfold) and the busy spinner (Busy), used by several screens */
+@keyframes aives-unfold{from{opacity:0;clip-path:inset(0 0 100% 0);transform:translateY(-6px)}to{opacity:1;clip-path:inset(0 0 0 0);transform:none}}
+@keyframes aives-spin{to{transform:rotate(360deg)}}

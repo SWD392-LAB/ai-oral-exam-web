@@ -126,8 +126,8 @@ html[data-theme="moonlight"] body {margin:0;background-color:var(--moonlight);ba
   [data-theme="moonlight"] .a-top-nav a {height:44px !important}
   [data-theme="moonlight"] .a-show-sm {display:flex !important}
   [data-theme="moonlight"] .a-turn-stage {margin:0 !important}
-  [data-theme="moonlight"] .a-title {font-size:30px !important;line-height:1.12 !important}
-  [data-theme="moonlight"] .a-score-xl {font-size:52px !important}
+  .a-title{font-size:30px !important;line-height:1.12 !important}
+  .a-score-xl{font-size:52px !important}
 }
 @media (prefers-reduced-motion: reduce) {
   [data-theme="night"] .a-rise,

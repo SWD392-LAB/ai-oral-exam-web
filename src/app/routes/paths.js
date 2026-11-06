@@ -1,10 +1,7 @@
 // One place for every URL in the app, so pages never hard-code a route.
 export const paths = {
   signIn: '/sign-in',
-  register: '/register',
-  forgotPassword: '/forgot-password',
-  emailLink: (token = 'demo-setup') => `/email-link/${token}`,
-  welcome: '/welcome',
+  authCallback: '/auth/callback',
   account: '/account',
 
   studentHome: '/student',
@@ -15,6 +12,7 @@ export const paths = {
 
   sessions: '/lecturer/sessions',
   newSession: '/lecturer/sessions/new',
+  questionBank: '/lecturer/question-bank',
   sessionSetup: (sessionId) => `/lecturer/sessions/${sessionId}/setup`,
   sessionStudents: (sessionId) => `/lecturer/sessions/${sessionId}/students`,
   results: '/lecturer/results',

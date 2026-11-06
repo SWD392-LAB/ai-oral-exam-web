@@ -30,3 +30,11 @@ dist-ssr
 *.pem
 *.key
 .mcp.json
+
+# Test artifacts and debug scripts
+tests/*.png
+tests/debug-*
+tests/snap-*
+tests/verify-*
+tests/check-*
+run-backend.bat

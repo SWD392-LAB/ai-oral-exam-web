@@ -13,12 +13,12 @@ import './ReviewAttempt.css'
 const TURN_MS = 600
 const TICK = 0.125
 
-// score typed by the lecturer: 0..10 in steps of 0.25
-const parseScore = (str) => {
+// score typed by the lecturer: 0..max in steps of 0.25
+const parseScore = (str, max = 10) => {
   const t = String(str ?? '').trim()
-  if (!/^\d{1,2}(\.\d{1,2})?$/.test(t)) return null
+  if (!/^\d{1,3}(\.\d{1,2})?$/.test(t)) return null
   const v = parseFloat(t)
-  if (v < 0 || v > 10 || Math.abs(v * 4 - Math.round(v * 4)) > 1e-9) return null
+  if (v < 0 || v > max || Math.abs(v * 4 - Math.round(v * 4)) > 1e-9) return null
   return v
 }
 
@@ -42,15 +42,39 @@ export default function ReviewAttemptPage() {
   const { later } = useTimeouts()
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
-  const [s, setState] = useMergeState({ view: null, draft: '', comment: '', playId: null, playing: false, pos: {}, turning: false, out: null, turned: false })
+  const [savingDraft, setSavingDraft] = useState(false)
+  const [draftSavedAt, setDraftSavedAt] = useState(null)
+  const [s, setState] = useMergeState({
+    view: null,
+    draft: '',
+    comment: '',
+    playId: null,
+    playing: false,
+    pos: {},
+    turning: false,
+    out: null,
+    turned: false,
+    flip: false,
+  })
 
   useEffect(() => {
     if (data?.id === attemptId) return
-    scoreReviewApi.get(attemptId).then(setData).catch((e) => setError(e.message))
+    scoreReviewApi.get(attemptId).then((res) => {
+      setData(res)
+      if (res.review?.status === 'Pending') {
+        setState({
+          draft: formatScore(res.review.finalScore),
+          comment: res.review.comment ?? '',
+        })
+        if (res.review.confirmedAt) {
+          setDraftSavedAt(formatTime(res.review.confirmedAt))
+        }
+      }
+    }).catch((e) => setError(e.message))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attemptId])
 
-  // the simulated playhead, 8 updates a second (the mock has no recordings; the real API sends audioUrl)
+  // simulated playhead
   useEffect(() => {
     if (!s.playing || !s.playId) return undefined
     const iv = setInterval(() => setState((p) => {
@@ -82,25 +106,68 @@ export default function ReviewAttemptPage() {
     setState((p) => ({ playId: id, playing: pp < dur, pos: { ...p.pos, [id]: pp } }))
   }
 
+  const saveDraft = async (score, comment) => {
+    setError(null)
+    setSavingDraft(true)
+    try {
+      const saved = await scoreReviewApi.saveDraft(data.id, score, comment)
+      setData((d) => ({
+        ...d,
+        ...saved,
+        review: {
+          ...d.review,
+          ...saved.review,
+          status: 'Pending',
+        },
+      }))
+      const timeStr = formatTime(saved.review?.confirmedAt || new Date().toISOString())
+      setDraftSavedAt(timeStr)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setSavingDraft(false)
+    }
+  }
+
   const confirm = async (score, comment) => {
     setError(null)
     try {
       const saved = await scoreReviewApi.confirm(data.id, score, comment)
-      setData((d) => ({ ...d, ...saved }))
+      setData((d) => ({
+        ...d,
+        ...saved,
+        status: 'Finalized',
+        review: {
+          ...d.review,
+          ...saved.review,
+          status: 'Approved',
+        },
+      }))
       setState({ view: 'confirmed', justConfirmed: true })
     } catch (e) {
       setError(e.message)
     }
   }
 
-  // the lecturer's revolving lantern: the reviewed attempt swings away, the next one swings in
   const goNext = async (e) => {
     e?.preventDefault?.()
     if (!data.next || s.turning) return
     const nextData = await scoreReviewApi.get(data.next.id)
     try { window.scrollTo({ top: 0, behavior: 'instant' }) } catch { /* no window */ }
-    setState({ turning: true, turned: true, out: { data, view: viewOf(data, s), draft: s.draft, comment: s.comment }, view: null, draft: '', comment: '', playId: null, playing: false, justConfirmed: false, justAdjusted: false })
+    setState({
+      turning: true,
+      turned: true,
+      out: { data, view: viewOf(data, s), draft: s.draft, comment: s.comment },
+      view: null,
+      draft: '',
+      comment: '',
+      playId: null,
+      playing: false,
+      justConfirmed: false,
+      justAdjusted: false,
+    })
     setData(nextData)
+    setDraftSavedAt(null)
     navigate(paths.review(nextData.id))
     later(() => setState({ turning: false, out: null }), TURN_MS)
   }
@@ -110,17 +177,29 @@ export default function ReviewAttemptPage() {
     const pre = live ? '' : 'out-'
     const view = v.view
     const ok = view === 'confirmed'
+    const isDraft = view === 'draft'
+    const isAdjusting = view === 'adjusting'
+    const isPending = view === 'pending'
+    const maxScore = d.maxScore ?? (Array.isArray(d.questions) ? d.questions.reduce((sum, q) => sum + (q.maxScore ?? 0), 0) : 10)
+    const maxTotalText = formatScore(maxScore)
     const aiTotal = d.aiTotal
-    const draft = view === 'adjusting' ? v.draft : formatScore(aiTotal)
-    const dv = parseScore(draft)
-    const bad = view === 'adjusting' && dv === null
+
+    const draft = isAdjusting
+      ? v.draft
+      : (isDraft ? formatScore(d.review?.finalScore ?? aiTotal) : formatScore(aiTotal))
+    const dv = parseScore(draft, maxScore)
+    const bad = isAdjusting && dv === null
+
     let score = aiTotal
-    if (view === 'adjusting') score = dv
-    if (ok) score = d.review?.finalScore ?? aiTotal
+    if (isAdjusting) score = dv
+    else if (isDraft) score = d.review?.finalScore ?? aiTotal
+    else if (ok) score = d.review?.finalScore ?? aiTotal
+
     const delta = dv === null ? null : dv - aiTotal
     const aiText = formatScore(aiTotal)
     const pos = s.pos
     const limit = d.session.timeLimitSeconds
+
     const questions = d.questions.map((q, qi) => {
       let fuN = 0
       const turns = []
@@ -151,42 +230,85 @@ export default function ReviewAttemptPage() {
       })
       return { label: `Question ${qi + 1}`, ai: formatScore(q.ai.score), max: formatScore(q.maxScore), comment: q.ai.comment, hid: `${pre}q${qi + 1}-h`, turns }
     })
+
     const just = live && !!s.justConfirmed
     const next = d.next
+    const statusText = ok
+      ? 'Confirmed'
+      : (d.review?.status === 'Pending' || isDraft ? 'Draft review (Pending approval)' : 'Waiting for review')
+    const statusInk = ok
+      ? 'var(--jade-ink, #0e9f6e)'
+      : (d.review?.status === 'Pending' || isDraft ? 'var(--gold-ink)' : 'var(--gold-ink)')
+
+    const finalState = ok
+      ? 'confirmed'
+      : (isDraft ? 'draft saved' : (isAdjusting ? 'adjusting' : 'starts at the AI total'))
+
     return {
       cls: kind === 'in' ? 'a-turn-in-s' : kind === 'out' ? 'a-turn-out-s' : '',
       pos: kind === 'out' ? 'absolute' : 'relative',
       pe: live ? 'auto' : 'none',
       hidden: live ? 'false' : 'true',
       rise: kind === 'rest' && !s.turned ? 'a-rise' : '',
-      name: d.student.fullName, code: d.student.studentCode, meta: metaOf(d),
-      back: `${d.session.title}${d.session.classCode ? ` (${d.session.classCode})` : ''}`, sessionId: d.session.id,
-      aiText, questions,
+      name: d.student.fullName,
+      code: d.student.studentCode,
+      meta: metaOf(d),
+      back: `${d.session.title}${d.session.classCode ? ` (${d.session.classCode})` : ''}`,
+      sessionId: d.session.id,
+      aiText,
+      maxScore,
+      maxTotalText,
+      questions,
       parts: d.questions.map((q, qi) => ({ label: `Q${qi + 1}`, v: formatScore(q.ai.score) })),
-      finalId: pre + 'final-h', scoreId: pre + 'final-score', errId: pre + 'final-score-err', commentId: pre + 'final-comment',
-      isPending: view === 'pending', isAdjusting: view === 'adjusting', isConfirmed: ok, notConfirmed: !ok,
-      statusText: ok ? 'Confirmed' : 'Waiting for review',
-      statusInk: ok ? 'var(--night-indigo)' : 'var(--gold-ink)',
+      finalId: pre + 'final-h',
+      scoreId: pre + 'final-score',
+      errId: pre + 'final-score-err',
+      commentId: pre + 'final-comment',
+      isPending,
+      isDraft,
+      isAdjusting,
+      isConfirmed: ok,
+      notConfirmed: !ok,
+      statusText,
+      statusInk,
       moonCls: just ? 'a-moon-fill' : '',
       insetCls: just ? 'a-settle' : '',
       riseCls: just ? 'a-rise' : '',
       paneCls: live && s.justAdjusted ? 'a-rise' : '',
-      scoreCls: just ? 'a-pop' : view === 'adjusting' && live ? (s.flip ? 'a-tick-a' : 'a-tick-b') : '',
-      finalState: ok ? 'confirmed' : view === 'adjusting' ? 'adjusting' : 'starts at the AI total',
+      scoreCls: just ? 'a-pop' : isAdjusting && live ? (s.flip ? 'a-tick-a' : 'a-tick-b') : '',
+      finalState,
       scoreText: score === null ? '–' : formatScore(score),
       deltaText: delta === null ? 'Not a valid score yet' : delta === 0 ? 'Same as the AI total' : `${delta > 0 ? '+' : '−'}${formatScore(Math.abs(delta))} from the AI total of ${aiText}`,
-      draft, comment: view === 'adjusting' ? v.comment : d.review?.comment ?? '', bad,
-      hasComment: ok && !!d.review?.comment?.trim(),
+      draft,
+      comment: isAdjusting ? v.comment : (d.review?.comment ?? ''),
+      bad,
+      hasComment: (ok || isDraft) && !!(d.review?.comment?.trim() || v.comment?.trim()),
+      displayComment: isAdjusting ? v.comment : (d.review?.comment ?? ''),
       confirmedAt: d.review?.confirmedAt ? formatTime(d.review.confirmedAt) : '',
       inputEdge: bad ? 'var(--ember-text)' : 'var(--night-edge)',
       hasNext: !!next,
       nextLabel: next ? `${next.fullName} · ${next.endReason === 'SessionClosed' ? 'stopped at' : 'ended'} ${formatTime(next.endedAt)}` : '',
       onDraft: (e) => setState((p) => ({ draft: e.target.value, flip: !p.flip })),
       onComment: (e) => setState({ comment: e.target.value }),
-      adjust: () => setState((p) => ({ view: 'adjusting', draft: formatScore(aiTotal), comment: d.review?.comment ?? '', justConfirmed: false, justAdjusted: false, flip: !p.flip })),
-      reset: () => setState({ view: 'pending', justAdjusted: true, justConfirmed: false }),
+      adjust: () => setState((p) => ({
+        view: 'adjusting',
+        draft: formatScore(d.review?.finalScore ?? aiTotal),
+        comment: d.review?.comment ?? '',
+        justConfirmed: false,
+        justAdjusted: false,
+        flip: !p.flip,
+      })),
+      reset: () => setState({
+        view: d.review?.status === 'Pending' ? 'draft' : 'pending',
+        justAdjusted: true,
+        justConfirmed: false,
+      }),
       confirmAi: () => confirm(aiTotal, ''),
+      confirmDraftNow: () => confirm(d.review?.finalScore ?? aiTotal, d.review?.comment ?? ''),
       confirmDraft: () => { if (dv !== null) confirm(dv, v.comment) },
+      saveDraftNow: () => { if (dv !== null) saveDraft(dv, v.comment) },
+      draftSavedAt,
+      savingDraft,
     }
   }
 
@@ -225,6 +347,7 @@ export default function ReviewAttemptPage() {
                   <span>{f.meta}</span>
                 </div>
               </div>
+
               <div className="a-grid-1-sm" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 400px', columnGap: '72px', rowGap: '64px', alignItems: 'start' }}>
                 <div className={f.rise} style={{ display: 'flex', flexDirection: 'column', gap: '64px', minWidth: '0', animationDelay: '60ms' }}>
                   {f.questions.map((q) => (
@@ -236,7 +359,7 @@ export default function ReviewAttemptPage() {
                           <span>
                             AI suggests{' '}
                             <span className="a-num" style={{ fontWeight: '500' }}>{q.ai}</span>
-                            {' '}/{' '}{q.max}
+                            {' / '}{q.max}
                           </span>
                         </span>
                       </div>
@@ -321,7 +444,9 @@ export default function ReviewAttemptPage() {
                     </article>
                   ))}
                 </div>
+
                 <aside aria-label="Score for this attempt" className={`a-score-col ${f.rise}`} style={{ position: 'sticky', top: '32px', alignSelf: 'start', display: 'flex', flexDirection: 'column', gap: '20px', minWidth: '0', animationDelay: '120ms' }}>
+                  {/* AI Suggestions Total Card */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '24px 24px 22px', borderRadius: '16px', border: '1.5px dashed var(--gold-edge)', background: 'var(--ai-wash)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       {crescentGold(20)}
@@ -330,7 +455,7 @@ export default function ReviewAttemptPage() {
                     </div>
                     <p className="a-num" style={{ display: 'flex', alignItems: 'baseline', gap: '8px', color: 'var(--gold-ink)' }}>
                       <span style={{ fontSize: '56px', fontWeight: '200', lineHeight: '1', letterSpacing: '-0.02em' }}>{f.aiText}</span>
-                      <span style={{ fontSize: '18px', fontWeight: '300' }}>/ 10</span>
+                      <span style={{ fontSize: '18px', fontWeight: '300' }}>/ {f.maxTotalText}</span>
                     </p>
                     <ul className="a-num" style={{ display: 'grid', gridTemplateColumns: `repeat(${f.parts.length}, minmax(0, 1fr))`, gap: '8px', paddingTop: '14px', borderTop: '1px dashed rgba(168,126,0,0.45)', fontSize: '13px', color: 'var(--ink-2)' }}>
                       {f.parts.map((p) => (
@@ -341,6 +466,8 @@ export default function ReviewAttemptPage() {
                       ))}
                     </ul>
                   </div>
+
+                  {/* Lecturer Review Card */}
                   <section aria-labelledby={f.finalId} className={`a-night ${f.insetCls}`} style={{ display: 'flex', flexDirection: 'column', gap: '18px', padding: '26px 24px 24px', borderRadius: '20px', backgroundColor: 'var(--night-indigo)', backgroundImage: 'radial-gradient(420px 260px at 100% 0%, var(--jade-wash), rgba(15,22,48,0) 70%)', color: 'var(--ivory)', boxShadow: '0 24px 48px -28px rgba(15,22,48,0.7)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       {f.isConfirmed ? (
@@ -356,26 +483,56 @@ export default function ReviewAttemptPage() {
                       <h2 id={f.finalId} style={{ fontSize: '15px', fontWeight: '500', scrollMarginTop: '24px' }}>Final score</h2>
                       <span style={{ marginLeft: 'auto', fontSize: '13px', color: 'var(--ivory-2)' }}>{f.finalState}</span>
                     </div>
+
                     <p className="a-num" aria-live="polite" style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
                       <span key={f.scoreText + f.scoreCls} className={`a-score-xl ${f.scoreCls}`} style={{ fontSize: '72px', fontWeight: '200', lineHeight: '0.95', letterSpacing: '-0.02em' }}>{f.scoreText}</span>
-                      <span style={{ fontSize: '18px', fontWeight: '300', color: 'var(--ivory-2)' }}>/ 10</span>
+                      <span style={{ fontSize: '18px', fontWeight: '300', color: 'var(--ivory-2)' }}>/ {f.maxTotalText}</span>
                     </p>
+
+                    {/* Mode 1: Initial Pending (chưa từng lưu nháp) */}
                     {f.isPending && (
                       <div className={f.paneCls} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        <button type="button" className="a-btn a-btn-primary" onClick={f.confirmAi} style={{ height: '52px', border: '0', borderRadius: '14px', background: 'var(--ivory)', color: 'var(--night-indigo)', fontSize: '16px', fontWeight: '500', boxShadow: '0 10px 28px -12px rgba(0,0,0,0.55)' }}>
-                          Confirm final score
+                        <button type="button" id="confirm-final-score-btn" className="a-btn a-btn-primary" onClick={f.confirmAi} style={{ height: '52px', border: '0', borderRadius: '14px', background: 'var(--ivory)', color: 'var(--night-indigo)', fontSize: '16px', fontWeight: '500', boxShadow: '0 10px 28px -12px rgba(0,0,0,0.55)' }}>
+                          Confirm final score ({f.aiText})
                         </button>
-                        <button type="button" className="a-btn a-btn-secondary" onClick={f.adjust} style={{ height: '44px', borderRadius: '12px', border: '1px solid var(--night-edge)', background: 'transparent', color: 'var(--ivory)', fontSize: '15px', fontWeight: '500' }}>
+                        <button type="button" id="adjust-final-score-btn" className="a-btn a-btn-secondary" onClick={f.adjust} style={{ height: '44px', borderRadius: '12px', border: '1px solid var(--night-edge)', background: 'transparent', color: 'var(--ivory)', fontSize: '15px', fontWeight: '500' }}>
                           Adjust final score
                         </button>
                       </div>
                     )}
+
+                    {/* Mode 2: Draft Saved (đã có nháp lưu trước đó) */}
+                    {f.isDraft && (
+                      <div className="a-rise" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '12px 14px', borderRadius: '12px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}>
+                          <span style={{ fontSize: '12.5px', color: 'var(--ivory-3)' }}>
+                            Draft saved at {f.confirmedAt || 'earlier'}
+                          </span>
+                          {f.hasComment && (
+                            <p style={{ fontSize: '14px', lineHeight: '1.45', color: 'var(--ivory)', margin: 0 }}>
+                              &ldquo;{f.displayComment}&rdquo;
+                            </p>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          <button type="button" id="confirm-final-score-btn" className="a-btn a-btn-primary" onClick={f.confirmDraftNow} style={{ height: '52px', border: '0', borderRadius: '14px', background: 'var(--ivory)', color: 'var(--night-indigo)', fontSize: '16px', fontWeight: '500', boxShadow: '0 10px 28px -12px rgba(0,0,0,0.55)' }}>
+                            Confirm final score ({f.scoreText})
+                          </button>
+                          <button type="button" id="update-draft-btn" className="a-btn a-btn-secondary" onClick={f.adjust} style={{ height: '44px', borderRadius: '12px', border: '1px solid var(--night-edge)', background: 'transparent', color: 'var(--ivory)', fontSize: '15px', fontWeight: '500' }}>
+                            Update draft
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Mode 3: Adjusting Score & Comment (Đang chỉnh sửa) */}
                     {f.isAdjusting && (
                       <div className="a-rise" style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                         <p className="a-num" style={{ marginTop: '-8px', fontSize: '14px', color: 'var(--ivory-2)' }}>{f.deltaText}</p>
+                        
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          <label htmlFor={f.scoreId} style={{ fontSize: '14px', fontWeight: '500' }}>Final score (0 to 10)</label>
-                          <input id={f.scoreId} type="number" min="0" max="10" step="0.25" inputMode="decimal" value={f.draft} onChange={f.onDraft} aria-invalid={f.bad} aria-describedby={f.errId} className="a-num" style={{ width: '160px', height: '48px', padding: '0 14px', borderRadius: '12px', border: `1px solid ${f.inputEdge}`, background: 'var(--night-field)', fontSize: '18px', fontWeight: '400', color: 'var(--ivory)', caretColor: 'var(--ivory)', colorScheme: 'dark' }} />
+                          <label htmlFor={f.scoreId} style={{ fontSize: '14px', fontWeight: '500' }}>Final score (0 to {f.maxTotalText})</label>
+                          <input id={f.scoreId} type="number" min="0" max={f.maxScore} step="0.25" inputMode="decimal" value={f.draft} onChange={f.onDraft} aria-invalid={f.bad} aria-describedby={f.errId} className="a-num" style={{ width: '160px', height: '48px', padding: '0 14px', borderRadius: '12px', border: `1px solid ${f.inputEdge}`, background: 'var(--night-field)', fontSize: '18px', fontWeight: '400', color: 'var(--ivory)', caretColor: 'var(--ivory)', colorScheme: 'dark' }} />
                           {f.bad && (
                             <p id={f.errId} className="a-rise" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13.5px', color: 'var(--ember-text)' }}>
                               <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style={{ flex: 'none', fill: 'none', stroke: 'currentColor', strokeWidth: '1.75', strokeLinecap: 'round', strokeLinejoin: 'round' }}>
@@ -383,40 +540,80 @@ export default function ReviewAttemptPage() {
                                 <path d="M12 10v4.5" />
                                 <path d="M12 17.2v.01" />
                               </svg>
-                              Enter a score from 0 to 10, in steps of 0.25.
+                              Enter a score from 0 to {f.maxTotalText}, in steps of 0.25.
                             </p>
                           )}
                         </div>
+
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                           <label htmlFor={f.commentId} style={{ fontSize: '14px', fontWeight: '500' }}>Comment for the student (optional)</label>
-                          <textarea id={f.commentId} rows="4" value={f.comment} onChange={f.onComment} style={{ width: '100%', padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--night-edge)', background: 'var(--night-field)', fontSize: '15px', lineHeight: '1.5', color: 'var(--ivory)', caretColor: 'var(--ivory)', resize: 'vertical', colorScheme: 'dark' }} />
+                          <textarea id={f.commentId} rows="4" value={f.comment} onChange={f.onComment} placeholder="Add feedback or justification for the score..." style={{ width: '100%', padding: '12px 14px', borderRadius: '12px', border: '1px solid var(--night-edge)', background: 'var(--night-field)', fontSize: '15px', lineHeight: '1.5', color: 'var(--ivory)', caretColor: 'var(--ivory)', resize: 'vertical', colorScheme: 'dark' }} />
                         </div>
+
+                        {f.draftSavedAt && (
+                          <div className="a-save-feedback">
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--jade)' }} />
+                            Draft saved at {f.draftSavedAt}
+                          </div>
+                        )}
+
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                          <button type="button" className="a-btn a-btn-primary" onClick={f.confirmDraft} aria-disabled={f.bad} style={{ height: '52px', border: '0', borderRadius: '14px', background: 'var(--ivory)', color: 'var(--night-indigo)', fontSize: '16px', fontWeight: '500', boxShadow: '0 10px 28px -12px rgba(0,0,0,0.55)' }}>
+                          {/* Nút Primary: Confirm Final Score */}
+                          <button
+                            type="button"
+                            id="confirm-draft-score-btn"
+                            className="a-btn a-btn-primary"
+                            onClick={f.confirmDraft}
+                            aria-disabled={f.bad}
+                            style={{ height: '52px', border: '0', borderRadius: '14px', background: 'var(--ivory)', color: 'var(--night-indigo)', fontSize: '16px', fontWeight: '500', boxShadow: '0 10px 28px -12px rgba(0,0,0,0.55)' }}
+                          >
                             Confirm final score
                           </button>
+
+                          {/* Nút Secondary: Save Draft */}
+                          <button
+                            type="button"
+                            id="save-draft-score-btn"
+                            className="a-btn a-btn-secondary"
+                            onClick={f.saveDraftNow}
+                            aria-disabled={f.bad || f.savingDraft}
+                            style={{ height: '44px', borderRadius: '12px', border: '1px solid var(--night-edge)', background: 'rgba(255,255,255,0.08)', color: 'var(--ivory)', fontSize: '15px', fontWeight: '500', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" style={{ fill: 'none', stroke: 'currentColor', strokeWidth: '1.75', strokeLinecap: 'round', strokeLinejoin: 'round' }}>
+                              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                              <polyline points="17 21 17 13 7 13 7 21" />
+                              <polyline points="7 3 7 8 15 8" />
+                            </svg>
+                            {f.savingDraft ? 'Saving draft…' : 'Save draft'}
+                          </button>
+
                           <button type="button" className="a-btn a-btn-quiet" onClick={f.reset} style={{ alignSelf: 'flex-start', height: '44px', padding: '0 14px', marginLeft: '-14px', border: '0', borderRadius: '10px', background: 'transparent', color: 'var(--ivory-2)', fontSize: '15px', fontWeight: '500' }}>
-                            Go back to{' '}{f.aiText}
+                            Cancel
                           </button>
                         </div>
                       </div>
                     )}
+
                     {error && <p role="alert" style={{ fontSize: '14px', lineHeight: '1.5', color: 'var(--ember-text)' }}>{error}</p>}
+
+                    {/* Mode 4: Confirmed (Đã chốt) */}
                     {f.isConfirmed && (
                       <div className={f.riseCls} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                        <p style={{ fontSize: '15px', fontWeight: '500' }}>Confirmed by you at {f.confirmedAt}</p>
+                        <p style={{ fontSize: '15px', fontWeight: '500' }}>Confirmed by you at {f.confirmedAt || 'just now'}</p>
                         <p style={{ fontSize: '14px', lineHeight: '1.5', color: 'var(--ivory-2)' }}>
                           The student can now open the report. This score counts in class statistics and the grade sheet.
                         </p>
                         {f.hasComment && (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '6px', paddingTop: '14px', borderTop: '1px solid var(--night-line)' }}>
                             <p style={{ fontSize: '13.5px', color: 'var(--ivory-3)' }}>Your comment for the student</p>
-                            <p style={{ fontSize: '14.5px', lineHeight: '1.5' }}>{f.comment}</p>
+                            <p style={{ fontSize: '14.5px', lineHeight: '1.5' }}>{f.displayComment}</p>
                           </div>
                         )}
                       </div>
                     )}
                   </section>
+
+                  {/* Navigation to next attempt */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingTop: '4px' }}>
                     {f.hasNext ? (
                       <>
@@ -454,16 +651,18 @@ export default function ReviewAttemptPage() {
         </div>
         <SampleNote style={{ marginTop: '0', paddingTop: '0', fontSize: '13px', color: 'var(--ink-3)' }}>All names, times, recordings and scores on this page are sample data.</SampleNote>
       </main>
+
+      {/* Mobile Sticky Bar */}
       <div className="a-only-sm a-night" style={{ position: 'fixed', left: '0', right: '0', bottom: '0', zIndex: '20', height: '64px', padding: '0 20px env(safe-area-inset-bottom)', background: 'var(--night-indigo)', color: 'var(--ivory)', display: 'flex', alignItems: 'center', gap: '12px', boxShadow: '0 -12px 28px -18px rgba(15,22,48,0.6)' }}>
         <span className="a-num" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '14px', color: 'var(--lantern-gold)', whiteSpace: 'nowrap' }}>
           <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" style={{ flex: 'none' }}>
             <circle cx="8" cy="8" r="6.25" style={{ fill: 'none', stroke: 'var(--lantern-gold)', strokeWidth: '1.5' }} />
             <path d="M8 1.75a6.25 6.25 0 0 1 0 12.5a2.6 6.25 0 0 0 0-12.5z" style={{ fill: 'var(--lantern-gold)' }} />
           </svg>
-          AI{' '}{now.aiText}
+          AI {now.aiText}
         </span>
         {now.notConfirmed ? (
-          <span className="a-num" style={{ fontSize: '20px', fontWeight: '300', lineHeight: '1', whiteSpace: 'nowrap' }}>Final{' '}{now.scoreText}</span>
+          <span className="a-num" style={{ fontSize: '20px', fontWeight: '300', lineHeight: '1', whiteSpace: 'nowrap' }}>Final {now.scoreText}</span>
         ) : (
           <span className="a-num" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
             <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" style={{ flex: 'none' }}>
@@ -484,7 +683,9 @@ export default function ReviewAttemptPage() {
 
 function viewOf(d, s) {
   if (s.view) return s.view
-  return d.status === 'Finalized' ? 'confirmed' : 'pending'
+  if (d.status === 'Finalized' || d.review?.status === 'Approved') return 'confirmed'
+  if (d.review?.status === 'Pending') return 'draft'
+  return 'pending'
 }
 
 function turnById(d, id) {

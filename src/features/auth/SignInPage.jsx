@@ -1,6 +1,5 @@
 import { Fragment, useEffect, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { homeFor, paths } from '../../app/routes/paths.js'
+import { useLocation } from 'react-router-dom'
 import { useMergeState } from '../../hooks/useMergeState.js'
 import { prefersReducedMotion } from '../../hooks/useNow.js'
 import { useTimeouts } from '../../hooks/useTimeouts.js'
@@ -47,47 +46,32 @@ function face(kind, tm, rs, as, qws, aws, fresh) {
   }
 }
 
-const NOTICE_OF = { invalid_credentials: 'wrong', account_deactivated: 'off', google_not_linked: 'google' }
-
 export default function SignInPage() {
-  const { signIn, signInWithGoogle } = useAuth()
-  const navigate = useNavigate()
+  const { user, signIn, signOut } = useAuth()
   const location = useLocation()
   const [s, setState] = useMergeState(() => (prefersReducedMotion() ? { t: R1e, paused: true } : { t: 0 }))
-  const [form, setForm] = useState({ login: '', password: '' })
-  const [notice, setNotice] = useState(null) // { kind, message }
+  // opened because the session ended, or the token has no AIVES role: say so until the next attempt replaces it
+  const [notice, setNotice] = useState(() => (location.state?.expired ? { kind: 'expired' } : null)) // { kind, message }
   const [busy, setBusy] = useState(false)
   const { later, clear } = useTimeouts()
+  // signed in with Keycloak, but the account has no role in AIVES: nothing to open, only Sign out
+  const noRole = !!user && !user.role
 
   useEffect(() => {
     const iv = setInterval(() => setState((p) => (p.paused || p.quiet ? {} : { t: ((p.t ?? 0) + 100) % LOOP })), 100)
     return () => clearInterval(iv)
   }, [setState])
 
-  const goHome = (u) => navigate(location.state?.from ?? homeFor(u.role), { replace: true })
-
+  // Keycloak shows its own page (password, Forgot password); we come back to /auth/callback
   const submit = async (e) => {
     e.preventDefault()
     if (busy) return
-    if (!form.login.trim() || !form.password) { setNotice({ kind: 'wrong' }); return }
+    if (noRole) { signOut(); return }
     setBusy(true)
     try {
-      goHome(await signIn(form.login.trim(), form.password))
-    } catch (err) {
-      setNotice({ kind: NOTICE_OF[err.code] ?? 'other', message: err.message })
-      setBusy(false)
-    }
-  }
-
-  const google = async () => {
-    if (busy) return
-    setBusy(true)
-    try {
-      const res = await signInWithGoogle()
-      if (res.firstSignIn) navigate(paths.welcome, { replace: true })
-      else goHome(res.user)
-    } catch (err) {
-      setNotice({ kind: NOTICE_OF[err.code] ?? 'other', message: err.message })
+      await signIn(location.state?.from)
+    } catch {
+      setNotice({ kind: 'other', message: 'AIVES could not reach the sign-in service. Try again in a moment.' })
       setBusy(false)
     }
   }
@@ -99,7 +83,6 @@ export default function SignInPage() {
   const tm = s.t ?? 0
   const quiet = !!s.quiet
   const kind = notice?.kind ?? ''
-  const pwShown = !!s.pw
   const q1 = (fresh) => face('q', tm, R1s, A1s, q1w, a1w, fresh)
   const f1 = (fresh) => face('f', tm, R2s, A2s, f1w, a2w, fresh)
   let faces, prevQ = ''
@@ -125,17 +108,10 @@ export default function SignInPage() {
     demoCls: s.paused ? 's-paused' : '',
     togglePause: () => setState((p) => ({ paused: !p.paused })),
     hush, wake,
-    showWrong: kind === 'wrong',
-    showDeactivated: kind === 'off',
-    showGoogle: kind === 'google',
+    showExpired: kind === 'expired',
     showOther: kind === 'other',
     otherMessage: notice?.message,
-    bad: kind === 'wrong',
-    describedBy: kind ? 'signin-notice' : undefined,
-    pwShown, pwHidden: !pwShown,
-    pwType: pwShown ? 'text' : 'password',
-    pwLabel: pwShown ? 'Hide password' : 'Show password',
-    togglePw: () => setState((p) => ({ pw: !p.pw })),
+    describedBy: kind || noRole ? 'signin-notice' : undefined,
   }
   return (
     <div className="pg-main" style={{ position: "relative", minHeight: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -152,23 +128,6 @@ export default function SignInPage() {
           <h2 style={{ fontSize: "24px", fontWeight: "500", lineHeight: "1.3", letterSpacing: "-0.005em" }}>
             Sign in
           </h2>
-          {v.showWrong && (
-            <>
-              <div id="signin-notice" role="alert" className="a-rise" style={{ display: "grid", gridTemplateColumns: "18px minmax(0, 1fr)", columnGap: "12px", padding: "14px 16px", borderRadius: "12px", background: "var(--red-wash-night)", border: "1px solid rgba(255,106,79,0.4)" }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style={{ marginTop: "2px", fill: "none", stroke: "var(--ember-text)", strokeWidth: "1.75", strokeLinecap: "round", strokeLinejoin: "round" }}>
-                  <path d="M12 4 21 19.5H3z" />
-                  <path d="M12 10v4.5" />
-                  <path d="M12 17.2v.01" />
-                </svg>
-                <p style={{ fontSize: "14.5px", lineHeight: "1.5" }}>
-                  <span style={{ fontWeight: "500", color: "var(--ember-text)" }}>
-                    That account name, email or password is not right.
-                  </span>
-                  {' '}Check it and try again, or use Forgot password.
-                </p>
-              </div>
-            </>
-          )}
           {v.showOther && (
             <div id="signin-notice" role="alert" className="a-rise" style={{ display: "grid", gridTemplateColumns: "18px minmax(0, 1fr)", columnGap: "12px", padding: "14px 16px", borderRadius: "12px", background: "var(--red-wash-night)", border: "1px solid rgba(255,106,79,0.4)" }}>
               <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style={{ marginTop: "2px", fill: "none", stroke: "var(--ember-text)", strokeWidth: "1.75", strokeLinecap: "round", strokeLinejoin: "round" }}>
@@ -181,112 +140,43 @@ export default function SignInPage() {
               </p>
             </div>
           )}
-          {v.showDeactivated && (
-            <>
-              <div id="signin-notice" role="alert" className="a-rise" style={{ display: "grid", gridTemplateColumns: "18px minmax(0, 1fr)", columnGap: "12px", padding: "14px 16px", borderRadius: "12px", background: "var(--red-wash-night)", border: "1px solid rgba(255,106,79,0.4)" }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style={{ marginTop: "2px", fill: "none", stroke: "var(--ember-text)", strokeWidth: "1.75", strokeLinecap: "round", strokeLinejoin: "round" }}>
-                  <circle cx="12" cy="12" r="8.5" />
-                  <path d="M6 6l12 12" />
-                </svg>
-                <p style={{ fontSize: "14.5px", lineHeight: "1.5" }}>
-                  <span style={{ fontWeight: "500", color: "var(--ember-text)" }}>
-                    This account is deactivated.
-                  </span>
-                  {' '}Contact your administrator.
-                </p>
-              </div>
-            </>
-          )}
-          {v.showGoogle && (
-            <>
-              <div id="signin-notice" role="status" className="a-rise" style={{ display: "grid", gridTemplateColumns: "18px minmax(0, 1fr)", columnGap: "12px", padding: "14px 16px", borderRadius: "12px", background: "rgba(123,196,196,0.12)", border: "1px solid var(--night-line)" }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style={{ marginTop: "2px", fill: "none", stroke: "var(--jade)", strokeWidth: "1.75", strokeLinecap: "round", strokeLinejoin: "round" }}>
-                  <circle cx="12" cy="12" r="9" />
-                  <path d="M12 11v5" />
-                  <path d="M12 7.6v.01" />
-                </svg>
-                <p style={{ fontSize: "14.5px", lineHeight: "1.5" }}>
-                  <span style={{ fontWeight: "500" }}>
-                    This Google email belongs to an AIVES account that is not linked to Google.
-                  </span>
-                  {' '}Sign in with your password, then link Google in Account settings. No password yet? Use{' '}
-                  <Link className="a-link" to={paths.forgotPassword} style={{ color: "var(--ivory)" }}>
-                    Forgot password
-                  </Link>
-                  {' '}to get a setup link.
-                </p>
-              </div>
-            </>
-          )}
-          <form onSubmit={submit} noValidate aria-label="Sign in with account name or email" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <label htmlFor="login-id" style={{ fontSize: "14px", fontWeight: "500" }}>
-                Account name or email
-              </label>
-              <input id="login-id" className="a-field" type="text" value={form.login} onChange={(e) => setForm((f) => ({ ...f, login: e.target.value }))} autoComplete="username" placeholder="minhanh.se18" aria-invalid={v.bad} aria-describedby={v.describedBy} style={{ width: "100%", height: "48px", padding: "0 14px", borderRadius: "12px", border: "1px solid var(--night-edge)", background: "var(--night-field)", fontSize: "16px", fontWeight: "400", color: "var(--ivory)" }} />
+          {noRole && (
+            <div id="signin-notice" role="alert" className="a-rise" style={{ display: "grid", gridTemplateColumns: "18px minmax(0, 1fr)", columnGap: "12px", padding: "14px 16px", borderRadius: "12px", background: "var(--red-wash-night)", border: "1px solid rgba(255,106,79,0.4)" }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style={{ marginTop: "2px", fill: "none", stroke: "var(--ember-text)", strokeWidth: "1.75", strokeLinecap: "round", strokeLinejoin: "round" }}>
+                <path d="M12 4 21 19.5H3z" />
+                <path d="M12 10v4.5" />
+                <path d="M12 17.2v.01" />
+              </svg>
+              <p style={{ fontSize: "14.5px", lineHeight: "1.5" }}>
+                <span style={{ fontWeight: "500", color: "var(--ember-text)" }}>
+                  This account has no role in AIVES.
+                </span>
+                {' '}Ask your administrator to give you one, then sign in again.
+              </p>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "12px" }}>
-                <label htmlFor="login-password" style={{ fontSize: "14px", fontWeight: "500" }}>
-                  Password
-                </label>
-                <Link className="a-link" to={paths.forgotPassword} style={{ fontSize: "14px", fontWeight: "400", color: "var(--ivory-2)" }}>
-                  Forgot password?
-                </Link>
-              </div>
-              <div style={{ position: "relative" }}>
-                <input id="login-password" className="a-field" type={v.pwType} value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} autoComplete="current-password" aria-invalid={v.bad} aria-describedby={v.describedBy} style={{ width: "100%", height: "48px", padding: "0 52px 0 14px", borderRadius: "12px", border: "1px solid var(--night-edge)", background: "var(--night-field)", fontSize: "16px", fontWeight: "400", color: "var(--ivory)" }} />
-                <button type="button" className="a-btn a-btn-quiet" aria-label={v.pwLabel} aria-pressed={v.pwShown} onClick={v.togglePw} style={{ position: "absolute", right: "2px", top: "2px", width: "44px", height: "44px", display: "grid", placeItems: "center", padding: "0", border: "0", borderRadius: "10px", background: "transparent", color: "var(--ivory-2)" }}>
-                  {v.pwHidden && (
-                    <>
-                      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style={{ fill: "none", stroke: "currentColor", strokeWidth: "1.75", strokeLinecap: "round", strokeLinejoin: "round" }}>
-                        <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
-                        <circle cx="12" cy="12" r="3" />
-                      </svg>
-                    </>
-                  )}
-                  {v.pwShown && (
-                    <>
-                      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style={{ fill: "none", stroke: "currentColor", strokeWidth: "1.75", strokeLinecap: "round", strokeLinejoin: "round" }}>
-                        <path d="M10.6 5.6A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a17 17 0 0 1-2.6 3.4" />
-                        <path d="M6.5 7.2C3.9 8.9 2.5 12 2.5 12S6 18.5 12 18.5c1.9 0 3.5-.6 4.9-1.5" />
-                        <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
-                        <path d="M3 3l18 18" />
-                      </svg>
-                    </>
-                  )}
-                </button>
-              </div>
+          )}
+          {v.showExpired && !noRole && (
+            <div id="signin-notice" role="status" className="a-rise" style={{ display: "grid", gridTemplateColumns: "18px minmax(0, 1fr)", columnGap: "12px", padding: "14px 16px", borderRadius: "12px", background: "rgba(123,196,196,0.12)", border: "1px solid var(--night-line)" }}>
+              <svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true" style={{ marginTop: "2px", fill: "none", stroke: "var(--jade)", strokeWidth: "1.6", strokeLinecap: "round" }}>
+                <circle cx="10" cy="10" r="7.6" />
+                <path d="M10 5.6V10l2.9 1.9" />
+              </svg>
+              <p style={{ fontSize: "14.5px", lineHeight: "1.5" }}>
+                <span style={{ fontWeight: "500" }}>
+                  Your session has ended.
+                </span>
+                {' '}Sign in again to go back to the page you were on.
+              </p>
             </div>
-            <button type="submit" className="a-btn a-btn-primary" aria-disabled={busy ? 'true' : undefined} aria-busy={busy} style={{ marginTop: "4px", height: "52px", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px", border: "0", borderRadius: "14px", background: "var(--ivory)", color: "var(--night-indigo)", fontSize: "16px", fontWeight: "500", textDecoration: "none", boxShadow: "0 10px 28px -12px rgba(0,0,0,0.55)" }}>
-              Sign in
+          )}
+          <form onSubmit={submit} noValidate aria-label="Sign in" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+            <button type="submit" className="a-btn a-btn-primary" aria-disabled={busy ? 'true' : undefined} aria-busy={busy} aria-describedby={v.describedBy} style={{ height: "52px", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 24px", border: "0", borderRadius: "14px", background: "var(--ivory)", color: "var(--night-indigo)", fontSize: "16px", fontWeight: "500", textDecoration: "none", boxShadow: "0 10px 28px -12px rgba(0,0,0,0.55)" }}>
+              {noRole ? 'Sign out' : busy ? 'Opening sign in' : 'Sign in'}
             </button>
-          </form>
-          <div style={{ display: "flex", alignItems: "center", gap: "14px", fontSize: "13.5px", color: "var(--ivory-3)" }}>
-            <span aria-hidden="true" style={{ flex: "1", height: "1px", background: "var(--night-line)" }} />
-            <span>
-              or
-            </span>
-            <span aria-hidden="true" style={{ flex: "1", height: "1px", background: "var(--night-line)" }} />
-          </div>
-          <button type="button" onClick={google} className="a-btn a-btn-secondary" aria-disabled={busy ? 'true' : undefined} style={{ height: "44px", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", padding: "0 18px", borderRadius: "12px", border: "1px solid var(--night-edge)", background: "transparent", color: "var(--ivory)", fontSize: "15px", fontWeight: "500", textDecoration: "none" }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style={{ fill: "none", stroke: "currentColor", strokeWidth: "1.75", strokeLinecap: "round", strokeLinejoin: "round" }}>
-              <path d="M20 12.2h-7.6" />
-              <path d="M20 12.2A8 8 0 1 1 17.5 6.3" />
-            </svg>
-            Continue with Google
-          </button>
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px", paddingTop: "20px", borderTop: "1px solid var(--night-line)" }}>
-            <p style={{ fontSize: "15px", lineHeight: "1.5", color: "var(--ivory-2)" }}>
-              New to AIVES?{' '}
-              <Link className="a-link" to={paths.register} style={{ fontWeight: "500", color: "var(--ivory)" }}>
-                Create a student account
-              </Link>
-            </p>
             <p style={{ fontSize: "13.5px", lineHeight: "1.45", color: "var(--ivory-3)" }}>
-              Lecturers and administrators get their account by email from an administrator.
+              You sign in on the AIVES account page. Your administrator creates your account.
             </p>
-          </div>
+          </form>
         </div>
         <section aria-label="How an exam sounds, sample" className={v.demoCls} style={{ gridArea: "demo", position: "relative", alignSelf: "end", paddingBottom: "8px", opacity: v.demoO, transition: "opacity .4s ease-out" }}>
           <div aria-hidden="true" style={{ position: "absolute", inset: "0", pointerEvents: "none", zIndex: "0" }}>

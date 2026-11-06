@@ -6,7 +6,6 @@ import { SampleNote } from '../../components/SampleNote.jsx'
 import { StudentTopBar } from '../../components/TopBar.jsx'
 import { useLoad } from '../../hooks/useLoad.js'
 import { formatDay, formatTime, minutesBetween, plural } from '../../utils/format.js'
-import './AttemptDone.css'
 
 export default function AttemptDonePage() {
   const { attemptId } = useParams()
@@ -20,7 +19,7 @@ export default function AttemptDonePage() {
 
   const stopped = a?.endReason === 'SessionClosed'
   const settled = step >= 2
-  const total = a?.session.questionCount ?? 0
+  const total = a?.session?.questionCount ?? a?.totalQuestions ?? 0
   const reached = (a?.answered ?? []).filter((q) => q.reached).length
   const last = stopped ? Math.max(1, reached) : total
   const nodes = Array.from({ length: total }, (_, i) => {
@@ -38,7 +37,7 @@ export default function AttemptDonePage() {
     if (missed) { note = 'Not reached, counts as 0'; noteC = 'var(--ember-text)'; noteCls = 'a-rise' }
     return { num, done, current, upcoming, missed, note, noteC, noteCls, markCls: isLast && settled ? 'a-pop' : '', lineO: num === total ? 0 : 1 }
   })
-  const ended = a?.endedAt ?? a?.session.endAt
+  const ended = a?.endedAt ?? a?.completedAt ?? a?.session?.endAt ?? new Date().toISOString()
   const day = a ? formatDay(ended) : ''
   const when = ['Today', 'Yesterday'].includes(day) ? `${day.toLowerCase()} at ${formatTime(ended)}` : `${day} at ${formatTime(ended)}`
   const mins = a ? minutesBetween(a.startedAt, ended) : 0
@@ -48,7 +47,7 @@ export default function AttemptDonePage() {
     stopped: !!a && stopped,
     voiceLight: step >= 1 ? 0 : 1,
     nodes,
-    title: a?.session.title, course: a?.session.courseCode,
+    title: a?.session?.title ?? a?.examTitle, course: a?.session?.courseCode ?? a?.courseCode,
     finishedLine: `. Submitted ${when} after ${plural(mins, 'minute')}. You can close this page.`,
     stoppedLine: `. It closed at ${formatTime(a?.session.endAt ?? ended)}, so your attempt stopped there after ${plural(mins, 'minute')}. Everything you said up to then is saved.`,
     savedLine: stopped ? `Up to ${formatTime(a?.session.endAt ?? ended)}, when the session closed.` : `${day} at ${formatTime(ended)}.`,

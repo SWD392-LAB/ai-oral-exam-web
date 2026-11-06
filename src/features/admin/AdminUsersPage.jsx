@@ -1,4 +1,4 @@
-import { Fragment } from 'react'
+import { Fragment, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { paths } from '../../app/routes/paths.js'
 import { adminApi } from '../../api/services.js'
@@ -19,42 +19,54 @@ const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 // change roles and deactivate accounts (F7). Exam records of deactivated accounts are kept.
 export default function AdminUsersPage() {
   const { user: me } = useAuth()
-  const { data: users, setData } = useLoad(() => adminApi.users(), [])
-  const { later, clear } = useTimeouts()
   const [m, set] = useMergeState({
-    open: false, closing: false, fEmail: '', fName: '', fRole: 'Lecturer', err: {}, sending: false, sent: false, sentTo: '',
-    editing: null, editVal: '', confirm: null, confirmClosing: false, busy: false,
-    just: null, arrive: null, totalFlip: 0, fr: 'all', fs: 'all', q: '', flip: 0, error: null,
+    open: false, closing: false, fEmail: '', fName: '', fRole: 'Lecturer', fCode: '', err: {}, sending: false, sent: false, sentTo: '',
+    editing: null, editVal: '', editCode: '', roleErr: '', confirm: null, confirmClosing: false, busy: false,
+    just: null, arrive: null, totalFlip: 0, fr: 'all', fs: 'all', q: '', dq: '', page: 1, flip: 0, error: null,
   })
-  const all = (users ?? []).slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+  // The backend filters and pages: search, role and active status go with the request, ten accounts per page.
+  const { data: pageData, setData, reload } = useLoad(() => adminApi.usersPage({
+    page: m.page,
+    pageSize: SHOWN,
+    search: m.dq.trim(),
+    role: m.fr === 'all' ? undefined : m.fr,
+    active: m.fs === 'Active' ? true : m.fs === 'Deactivated' ? false : undefined,
+  }), [m.page, m.fr, m.fs, m.dq])
+  const { later, clear } = useTimeouts()
+  // typing in the search box asks the backend only after a short pause, from the first page
+  useEffect(() => {
+    if (m.q === m.dq) return undefined
+    const id = setTimeout(() => set({ dq: m.q, page: 1 }), 300)
+    return () => clearTimeout(id)
+  }, [m.q, m.dq, set])
+  const users = pageData?.items ?? null
+  const total = pageData?.totalCount ?? 0
+  const totalPages = pageData?.totalPages ?? 1
   const statusOf = (u) => (!u.active ? 'Deactivated' : !u.hasPassword && u.setupSentAt ? 'Setup link sent' : 'Active')
-  const visibleIn = (st) => {
-    const q = st.q.trim().toLowerCase()
-    return all.filter((u) => (st.fr === 'all' || u.role === st.fr) && (st.fs === 'all' || statusOf(u) === st.fs)
-      && (!q || `${u.fullName} ${u.accountName ?? ''} ${u.email}`.toLowerCase().includes(q))).slice(0, SHOWN)
-  }
-  const shownUsers = visibleIn(m)
-  const filter = (patch) => {
-    const next = { ...m, ...patch }
-    const changed = visibleIn(m).map((u) => u.id).join() !== visibleIn(next).map((u) => u.id).join()
-    set({ ...patch, ...(changed ? { flip: m.flip + 1, arrive: null } : {}) })
-  }
-  const replace = (u) => setData((list) => list.map((x) => (x.id === u.id ? u : x)))
+  const shownUsers = (users ?? []).filter((u) => m.fs === 'all' || statusOf(u) === m.fs)
+  const filter = (patch) => set({ ...patch, page: 1, flip: m.flip + 1, arrive: null })
+  const goToPage = (page) => set({ page, flip: m.flip + 1, arrive: null, editing: null, confirm: null })
+  const replace = (u) => setData((d) => ({ ...d, items: d.items.map((x) => (x.id === u.id ? u : x)) }))
   const create = async () => {
     if (m.sending) return
     const email = m.fEmail.trim(), name = m.fName.trim(), err = {}
     if (!email) err.email = 'Enter an email address.'
     else if (!EMAIL_RE.test(email)) err.email = 'Enter an email address like name@example.com.'
-    else if (all.some((u) => u.email.toLowerCase() === email.toLowerCase())) err.email = 'An account already uses this email.'
+    // an email already used by an account on another page is refused by the API (email_exists) and shown below
     if (!name) err.name = 'Enter the full name.'
-    if (err.email || err.name) { set({ err, sent: false }); return }
+    // the API requires a student code for a student and a lecturer code for a lecturer
+    const code = m.fCode.trim()
+    if (m.fRole !== 'Administrator' && !code) err.code = `Enter the ${m.fRole === 'Student' ? 'student' : 'lecturer'} code.`
+    if (err.email || err.name || err.code) { set({ err, sent: false }); return }
     set({ err: {}, sending: true, sent: false })
     try {
-      const u = await atLeast(adminApi.createUser(name, email, m.fRole), 900)
-      setData((list) => [...list, u])
-      set((p) => ({ sending: false, sent: true, sentTo: email, fEmail: '', fName: '', fRole: 'Lecturer', totalFlip: p.totalFlip + 1, just: { id: u.id, f: 'new' }, arrive: u.id, fr: 'all', fs: 'all', q: '' }))
+      const u = await atLeast(adminApi.createUser(name, email, m.fRole, code), 900)
+      // show the first page again with no filter (the list is ordered by name, the new account may be on a later page)
+      const alreadyThere = m.page === 1 && m.fr === 'all' && m.fs === 'all' && m.dq === ''
+      set((p) => ({ sending: false, sent: true, sentTo: email, fEmail: '', fName: '', fRole: 'Lecturer', fCode: '', totalFlip: p.totalFlip + 1, just: { id: u.id, f: 'new' }, arrive: u.id, fr: 'all', fs: 'all', q: '', dq: '', page: 1 }))
+      if (alreadyThere) reload(true)
     } catch (e) {
-      set({ sending: false, err: { email: e.message } })
+      set({ sending: false, err: String(e.code ?? '').includes('code') ? { code: e.message } : { email: e.message } })
     }
   }
   const closePanel = () => { set({ closing: true }); later(() => set({ open: false, closing: false, sent: false, err: {} }), 260) }
@@ -70,7 +82,8 @@ export default function AdminUsersPage() {
     let note = '', noteInk = 'var(--jade-ink)'
     if (off) { note = 'Exam records kept'; noteInk = 'var(--ink-3)' }
     else if (pending && just !== 'new') note = sentDay === 'Today' ? 'today' : sentDay
-    const self = id === me?.id
+    // by email: the id in the Keycloak token is not the id of the account list
+    const self = !!me?.email && u.email.toLowerCase() === me.email.toLowerCase()
     let cls = 'a-row'
     if (m.arrive === id) cls += ' au-arrive'
     else if (m.flip) cls += m.flip % 2 ? ' au-in-a' : ' au-in-b'
@@ -84,14 +97,22 @@ export default function AdminUsersPage() {
       editing, notEditing: !editing, roleCellCls: editing ? 'au-editing' : '',
       editVal: editing ? m.editVal : u.role,
       editLabel: `New role for ${u.fullName}`,
-      setEdit: (e) => set({ editVal: e.target.value }),
+      setEdit: (e) => set({ editVal: e.target.value, editCode: '', roleErr: '' }),
+      // the API needs a student code for a student and a lecturer code for a lecturer
+      needsCode: editing && m.editVal !== 'Administrator' && m.editVal !== u.role,
+      codeLabel: `${m.editVal === 'Student' ? 'Student' : 'Lecturer'} code for ${u.fullName}`,
+      codePlaceholder: `${m.editVal === 'Student' ? 'Student' : 'Lecturer'} code`,
+      editCode: m.editCode, setCode: (e) => set({ editCode: e.target.value, roleErr: '' }),
+      roleErr: editing ? m.roleErr : '',
       saveOff: editing && m.editVal === u.role ? 'true' : 'false',
       save: async () => {
         if (m.editVal === u.role) return
-        try { replace(await adminApi.changeRole(id, m.editVal)); set({ editing: null, just: { id, f: 'role' }, arrive: null }) } catch (e) { set({ error: e.message }) }
+        const code = m.editCode.trim()
+        if (m.editVal !== 'Administrator' && !code) { set({ roleErr: `Enter the ${m.editVal === 'Student' ? 'student' : 'lecturer'} code.` }); return }
+        try { replace(await adminApi.changeRole(id, m.editVal, code)); set({ editing: null, roleErr: '', just: { id, f: 'role' }, arrive: null }) } catch (e) { set({ roleErr: e.message }) }
       },
       cancel: () => set({ editing: null }),
-      edit: () => { if (m.editing === id) { set({ editing: null }); return } set({ editing: id, editVal: u.role, confirm: m.confirm === id ? null : m.confirm }) },
+      edit: () => { if (m.editing === id) { set({ editing: null }); return } set({ editing: id, editVal: u.role, editCode: '', roleErr: '', confirm: m.confirm === id ? null : m.confirm }) },
       isActive: !off && !pending, isOff: off, isPending: pending,
       status: statusOf(u),
       statusInk: off ? 'var(--ink-3)' : pending ? 'var(--ink-2)' : 'var(--night-indigo)',
@@ -146,7 +167,8 @@ export default function AdminUsersPage() {
   }
   const filtered = m.fr !== 'all' || m.fs !== 'all' || m.q.trim() !== ''
   const open = m.open
-  const total = all.length
+  const from = total === 0 ? 0 : (m.page - 1) * SHOWN + 1
+  const to = (m.page - 1) * SHOWN + shownUsers.length
   const v = {
     rows: shownUsers.map(row),
     total: total.toString(),
@@ -165,11 +187,15 @@ export default function AdminUsersPage() {
     togglePad: open && !m.closing ? '14px' : '20px',
     toggleShadow: open && !m.closing ? 'none' : '0 8px 18px -10px rgba(15,22,48,0.55)',
     close: closePanel,
-    fEmail: m.fEmail, fName: m.fName, fRole: m.fRole,
+    fEmail: m.fEmail, fName: m.fName, fRole: m.fRole, fCode: m.fCode,
+    needsCode: m.fRole !== 'Administrator',
+    codeLabel: m.fRole === 'Student' ? 'Student code' : 'Lecturer code',
+    setCode: (e) => set((p) => ({ fCode: e.target.value, err: { ...p.err, code: '' } })),
+    codeBad: m.err.code ? 'true' : 'false',
     setEmail: (e) => set((p) => ({ fEmail: e.target.value, err: { ...p.err, email: '' } })),
     setName: (e) => set((p) => ({ fName: e.target.value, err: { ...p.err, name: '' } })),
-    setRole: (e) => set({ fRole: e.target.value }),
-    err: { email: m.err.email || '', name: m.err.name || '' },
+    setRole: (e) => set((p) => ({ fRole: e.target.value, fCode: '', err: { ...p.err, code: '' } })),
+    err: { email: m.err.email || '', name: m.err.name || '', code: m.err.code || '' },
     emailBad: m.err.email ? 'true' : 'false',
     nameBad: m.err.name ? 'true' : 'false',
     sending: m.sending, notSending: !m.sending,
@@ -182,7 +208,11 @@ export default function AdminUsersPage() {
     setQ: (e) => filter({ q: e.target.value }),
     clear: () => { if (filtered) filter({ fr: 'all', fs: 'all', q: '' }) },
     clearOff: filtered ? 'false' : 'true',
-    countText: filtered ? (shownUsers.length === 1 ? '1 user matches' : `${shownUsers.length} users match`) : `Showing ${shownUsers.length} of ${total} users`,
+    countText: total <= SHOWN ? (filtered ? (total === 1 ? '1 user matches' : `${total} users match`) : `Showing ${total} of ${total} users`) : `Showing ${from}–${to} of ${total} ${filtered ? 'matching ' : ''}users`,
+    page: m.page, totalPages, pagerShown: totalPages > 1,
+    prevOff: m.page <= 1 ? 'true' : 'false', nextOff: m.page >= totalPages ? 'true' : 'false',
+    prev: () => { if (m.page > 1) goToPage(m.page - 1) },
+    next: () => { if (m.page < totalPages) goToPage(m.page + 1) },
     emptyDisplay: users && shownUsers.length === 0 ? 'table-row' : 'none',
   }
   return (
@@ -220,7 +250,7 @@ export default function AdminUsersPage() {
                   Create a user
                 </h2>
               </div>
-              <div className="a-grid-1-sm" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.25fr) minmax(0, 1fr) 210px auto", gap: "16px", alignItems: "start" }}>
+              <div className="a-grid-1-sm" style={{ display: "grid", gridTemplateColumns: v.needsCode ? "minmax(0, 1.25fr) minmax(0, 1fr) 210px minmax(0, 0.8fr) auto" : "minmax(0, 1.25fr) minmax(0, 1fr) 210px auto", gap: "16px", alignItems: "start" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                   <label htmlFor="new-email" style={{ fontSize: "14px", fontWeight: "500", color: "var(--night-indigo)" }}>
                     Email
@@ -278,6 +308,19 @@ export default function AdminUsersPage() {
                     </svg>
                   </div>
                 </div>
+                {v.needsCode && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <label htmlFor="new-code" style={{ fontSize: "14px", fontWeight: "500", color: "var(--night-indigo)" }}>
+                      {v.codeLabel}
+                    </label>
+                    <input id="new-code" type="text" className="a-field" value={v.fCode} onChange={v.setCode} aria-invalid={v.codeBad} aria-describedby="new-code-err" autoComplete="off" style={{ width: "100%", height: "44px", padding: "0 14px", borderRadius: "10px", border: "1px solid var(--edge)", background: "var(--field-white)", fontSize: "15px", color: "var(--night-indigo)" }} />
+                    {v.err.code && (
+                      <p id="new-code-err" className="a-rise" role="alert" style={{ fontSize: "13.5px", lineHeight: "1.4", color: "var(--red-ink)" }}>
+                        {v.err.code}
+                      </p>
+                    )}
+                  </div>
+                )}
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                   <span aria-hidden="true" className="a-hide-sm" style={{ fontSize: "14px", visibility: "hidden" }}>
                     Send
@@ -472,12 +515,20 @@ export default function AdminUsersPage() {
                               <path d="m6 9 6 6 6-6" />
                             </svg>
                           </div>
+                          {r.needsCode && (
+                            <input type="text" className="a-field" aria-label={r.codeLabel} placeholder={r.codePlaceholder} value={r.editCode} onChange={r.setCode} autoComplete="off" style={{ width: "150px", height: "36px", padding: "0 12px", borderRadius: "10px", border: "1px solid var(--night-indigo)", background: "var(--field-white)", fontSize: "14.5px", color: "var(--night-indigo)" }} />
+                          )}
                           <button type="button" className="a-btn a-btn-primary" aria-disabled={r.saveOff} onClick={r.save} style={{ height: "36px", padding: "0 14px", border: "0", borderRadius: "10px", background: "var(--night-indigo)", color: "var(--ivory)", fontSize: "14px", fontWeight: "500", boxShadow: "0 8px 18px -10px rgba(15,22,48,0.55)" }}>
                             Save role
                           </button>
                           <button type="button" className="a-btn a-btn-quiet" onClick={r.cancel} style={{ height: "36px", padding: "0 10px", border: "0", borderRadius: "10px", background: "transparent", color: "var(--ink-2)", fontSize: "14px", fontWeight: "500" }}>
                             Cancel
                           </button>
+                          {r.roleErr && (
+                            <div role="alert" style={{ flexBasis: "100%", fontSize: "12.5px", color: "var(--ink-2)" }}>
+                              {r.roleErr}
+                            </div>
+                          )}
                         </div>
                         <span className={r.roleCls} style={{ display: r.roleDisplay }}>
                           {r.role}
@@ -591,6 +642,19 @@ export default function AdminUsersPage() {
             </table>
           </div>
         </section>
+        {v.pagerShown && (
+          <nav aria-label="Pages of users" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "12px" }}>
+            <button type="button" className="a-btn a-btn-quiet" aria-disabled={v.prevOff} onClick={v.prev} style={{ height: "44px", padding: "0 14px", border: "0", borderRadius: "10px", background: "transparent", fontSize: "15px", fontWeight: "500", color: "var(--ink-2)" }}>
+              Previous
+            </button>
+            <span className="a-num" aria-live="polite" style={{ fontSize: "13.5px", color: "var(--ink-3)" }}>
+              Page {v.page} of {v.totalPages}
+            </span>
+            <button type="button" className="a-btn a-btn-quiet" aria-disabled={v.nextOff} onClick={v.next} style={{ height: "44px", padding: "0 14px", border: "0", borderRadius: "10px", background: "transparent", fontSize: "15px", fontWeight: "500", color: "var(--ink-2)" }}>
+              Next
+            </button>
+          </nav>
+        )}
         <SampleNote style={{ marginTop: '32px', paddingTop: '0', fontSize: '13px', color: 'var(--ink-3)' }}>All names, emails and counts on this page are sample data.</SampleNote>
       </main>
     </div>

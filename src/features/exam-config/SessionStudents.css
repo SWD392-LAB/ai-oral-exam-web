@@ -1,5 +1,5 @@
 /* SessionStudents only (from the wireframe helmet), scoped to .pg-sessionstudents */
-.pg-sessionstudents .st-open {animation:st-open .45s cubic-bezier(0.16,1,0.3,1) backwards}
+.pg-sessionstudents .st-open {animation:aives-unfold .45s cubic-bezier(0.16,1,0.3,1) backwards}
 .pg-sessionstudents .st-ring {animation:st-ring .9s cubic-bezier(0.16,1,0.3,1) .1s backwards}
 .pg-sessionstudents .st-step:hover .st-node {border-color:var(--night-indigo) !important}
 .pg-sessionstudents .st-step:hover .st-step-label {color:var(--night-indigo) !important;text-decoration-color:var(--night-indigo) !important}
@@ -7,7 +7,6 @@
 .pg-sessionstudents .st-file:hover {background:var(--field-white) !important;border-color:var(--night-indigo) !important}
 .pg-sessionstudents .st-night-file:hover {background:rgba(246,241,231,0.08) !important}
 .pg-sessionstudents .st-search::-webkit-search-cancel-button {cursor:pointer}
-@keyframes st-open{from{opacity:0;clip-path:inset(0 0 100% 0);transform:translateY(-6px)}to{opacity:1;clip-path:inset(0 0 0 0);transform:none}}
 @keyframes st-ring{from{stroke-dasharray:2.45 2.45}to{stroke-dasharray:39.3 0}}
 @media (max-width: 760px) {
   .pg-sessionstudents .st-aside {position:static !important}
