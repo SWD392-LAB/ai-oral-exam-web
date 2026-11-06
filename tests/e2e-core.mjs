@@ -3,7 +3,8 @@
 //   phase 2  student: lobby + microphone check, take the interview, finish
 //   phase 3  lecturer: review the attempt, save a draft, confirm the final score
 //   phase 4  student: read the confirmed report
-// Usage: node tests/e2e-core.mjs <1|2|3|4|all>   (all = new session, phases 1-4).  E2E_HEADED=1 shows the browser; E2E_SLOWMO=ms slows it.
+// Phase 0 = Feature 1 (material -> AI question drafts -> review).
+// Usage: node tests/e2e-core.mjs <0|1|2|3|4|all>   (all = new session, phases 1-4).  E2E_HEADED=1 shows the browser; E2E_SLOWMO=ms slows it.
 // Needs: backend on :5080 with AiProviders__LlmProvider=Mock, and Vite on :5173 started with VITE_ANSWER_INPUT=text (typed answers).
 // State between phases, screenshots and the temp student CSV live in E2E_OUT (default: <temp>/aives-e2e).
 // Everything it creates is named "E2E-Core ..."; it deletes nothing. It writes to whatever database the backend uses.
@@ -80,6 +81,94 @@ async function dump(page, label) {
 // read-only database check (the same local Docker database the backend uses)
 const db = (sql) => execSync(`docker exec -i aives-postgres psql -U aives -d aives -At -c "${sql}"`, { encoding: 'utf8' }).trim()
 const fmtDate = (d) => d.toISOString().slice(0, 10)
+
+// ---------------------------------------------------------------- phase 0 (Feature 1)
+async function phase0() {
+  console.log('\nPHASE 0 (Feature 1): lecturer uploads a course material, AI drafts questions from it, lecturer reviews them')
+  const page = await session(LECTURER)
+  await page.goto(`${BASE}/lecturer/question-bank`); await settle(page, 1500)
+  const sel = page.locator('#course-select')
+  await sel.waitFor({ timeout: 15000 })
+  await sel.selectOption(COURSE_ID).catch(() => {}); await settle(page, 1200)
+  ok('question bank opens for the course', (await sel.locator('option:checked').innerText()).trim())
+
+  // upload a small text material; the page then ingests it by itself
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '')
+  const fileName = `e2e-core-material-${stamp}.txt`
+  const file = path.join(OUT, fileName)   // the text carries the run stamp: identical drafts would be refused as duplicates (409 question_bank_duplicate)
+  fs.writeFileSync(file, [
+    `Chapter 1 (run ${stamp}): Modular monolith versus microservices.`,
+    `Run ${stamp}: A modular monolith is deployed as one unit but is split into modules with clear boundaries. Each module owns its data and exposes a small contract to the other modules.`,
+    `Run ${stamp}: Microservices are deployed independently. They give teams freedom to scale and release on their own, but they add network calls, distributed tracing and eventual consistency.`,
+    `Run ${stamp}: A small team usually pays less operational cost with a modular monolith. Splitting a module into a service later is easier when the boundaries and contracts already exist.`,
+    'Chapter 2. Bounded contexts. A bounded context is the area in which one model and one vocabulary apply. Two contexts may use the same word with different meanings, so they communicate through explicit contracts.',
+    'Chapter 3. Testing the boundaries. Contract tests check that a module still honours the promises other modules rely on. Integration tests check that the modules work together on the real database.',
+  ].join('\n\n'))
+  await page.getByRole('button', { name: /Course Materials/ }).click(); await settle(page, 600)
+  await page.locator('input[type=file]').setInputFiles(file)
+  let matId = '', matStatus = ''
+  for (let i = 0; i < 40 && matStatus !== 'Ready'; i++) {
+    await page.waitForTimeout(1500)
+    const row = db(`select id||'|'||status from course_materials where file_name='${fileName}'`)
+    if (row) [matId, matStatus] = row.split('|')
+    if (matStatus === 'Failed') break
+  }
+  await shot(page, '00-materials')
+  if (matStatus === 'Ready') ok('material uploaded and ingested', `${fileName} -> Ready, ${db(`select count(*) from material_chunks where course_material_id='${matId}'`)} chunks`)
+  else { bad('material uploaded and ingested', `status "${matStatus || 'not found'}" ${db(`select coalesce(ingest_error,'') from course_materials where file_name='${fileName}'`)}`); return page }
+  state.materialId = matId; save()
+
+  // ask the AI for drafts from that material
+  const before = Number(db(`select count(*) from question_bank_items where origin='Ai'`))
+  await page.getByRole('button', { name: /Questions \(/ }).click(); await settle(page, 500)
+  await page.getByRole('button', { name: /Generate with AI/ }).first().click()
+  await page.locator('#ai-topic').waitFor({ timeout: 10000 })
+  await page.fill('#ai-topic', `Modular monolith and microservices ${stamp}`)   // unique per run: the bank refuses a draft whose text already exists
+  await page.selectOption('#ai-bloom', 'Understand')
+  await page.fill('#ai-count', '2')
+  const pick = page.locator('.qb-mat-pick-item', { hasText: fileName }).locator('input[type=checkbox]')
+  // the modal pre-ticks every ready material: keep only the one just uploaded, so the drafts must come from it
+  const boxes = page.locator('.qb-mat-pick-item input[type=checkbox]')
+  for (let k = 0; k < await boxes.count(); k++) if (await boxes.nth(k).isChecked()) await boxes.nth(k).uncheck()
+  await pick.check()
+  await shot(page, '00-ai-modal')
+  await page.getByRole('button', { name: /Tạo câu hỏi bằng AI/ }).click()
+  let done = false
+  for (let i = 0; i < 90 && !done; i++) {          // up to 3 minutes: a real model can be slow
+    await page.waitForTimeout(2000)
+    done = !(await page.locator('#ai-topic').isVisible().catch(() => false))
+  }
+  if (!done) {
+    const err = (await page.locator('.qb-modal-ai').innerText().catch(() => '')).replace(/\s+/g, ' ').slice(-220)
+    bad('AI generated question drafts', `modal still open: ${err}`); await shot(page, '00-ai-stuck'); return page
+  }
+  await settle(page, 1500)
+  const drafts = db(`select i.id||'|'||left(replace(replace(i.content,chr(10),' '),chr(13),' '),70) from question_bank_items i join question_bank_revisions r on r.question_bank_item_id=i.id where i.origin='Ai' and i.status='Draft' and r.provenance_json::text like '%${matId}%' order by i.created_at`).split('\n').filter(Boolean).map((l) => { const k = l.indexOf('|'); return { id: l.slice(0, k), text: l.slice(k + 1) } })
+  const after = Number(db(`select count(*) from question_bank_items where origin='Ai'`))
+  if (drafts.length >= 1) ok('AI created question drafts from the material', `${drafts.length} drafts (AI questions in the bank: ${before} -> ${after})`); else { bad('AI created question drafts from the material', '0 drafts linked to the material'); await shot(page, '00-no-drafts'); return page }
+  console.log('        drafts: ' + drafts.map((d) => `"${d.text}"`).join('  |  '))
+
+  // every draft must carry the platform rubric version and cite the material
+  const prov = db(`select r.provenance_json->>'PlatformRubricVersionId' from question_bank_revisions r where r.question_bank_item_id='${drafts[0].id}' order by r.revision_no limit 1`)
+  const known = db(`select count(*) from rubric_versions where id='${prov}'`) === '1'
+  if (known) ok('draft carries an existing platform rubric version', prov); else bad('draft carries an existing platform rubric version', `got "${prov}"`)
+  const cites = db(`select (r.provenance_json->'Citations'->0->>'Quote') is not null from question_bank_revisions r where r.question_bank_item_id='${drafts[0].id}' order by r.revision_no limit 1`)
+  if (cites === 't') ok('draft cites a quote from the material'); else bad('draft cites a quote from the material', cites)
+
+  // the lecturer reviews: approve the first draft, reject the second one if there is one
+  const row = (d) => page.locator('.qb-row', { hasText: d.text.slice(0, 40) }).first()
+  await row(drafts[0]).getByRole('button', { name: /Duyệt/ }).click(); await settle(page, 1200)
+  const st1 = db(`select status from question_bank_items where id='${drafts[0].id}'`)
+  if (st1 === 'Approved') ok('lecturer approved a draft', st1); else bad('lecturer approved a draft', st1)
+  state.approvedItemId = drafts[0].id; save()
+  if (drafts[1]) {
+    await row(drafts[1]).getByRole('button', { name: /Loại/ }).click(); await settle(page, 1200)
+    const st2 = db(`select status from question_bank_items where id='${drafts[1].id}'`)
+    if (st2 === 'Rejected') ok('lecturer rejected a draft', st2); else bad('lecturer rejected a draft', st2)
+  }
+  await shot(page, '00-reviewed')
+  return page
+}
 
 // ---------------------------------------------------------------- phase 1
 async function phase1() {
@@ -278,10 +367,10 @@ async function phase4() {
 
 const phase = process.argv[2] || 'all'
 if (phase === 'all') for (const k of Object.keys(state)) delete state[k]   // a full run always starts with a new session
-const todo = phase === 'all' ? ['1', '2', '3', '4'] : [phase]
+const todo = phase === 'all' ? ['0', '1', '2', '3', '4'] : [phase]
 for (const p of todo) {
   try {
-    const page = await ({ 1: phase1, 2: phase2, 3: phase3, 4: phase4 }[p])()
+    const page = await ({ 0: phase0, 1: phase1, 2: phase2, 3: phase3, 4: phase4 }[p])()
     if (page?.errors?.length) { console.log('  backend/page errors seen:'); [...new Set(page.errors)].slice(0, 8).forEach((e) => console.log('    ' + e)) }
   } catch (e) { bad(`phase ${p} crashed`, String(e.message).split('\n')[0]) }
 }
