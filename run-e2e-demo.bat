@@ -8,6 +8,8 @@ echo     Phase 1 Lecturer: exam session + questions from the bank + students + p
 echo     Phase 2 Student : lobby + microphone check + interview + submit
 echo     Phase 3 Lecturer: review, save draft score, confirm final score
 echo     Phase 4 Student : read the confirmed report
+echo     Phase 5 Admin   : users list (pages, search, role and status filters, total, duplicate email)
+echo     Phase 6 Lecturer: exam session lists show every session (Exam sessions, Results and review, Class statistics)
 echo ===============================================================================
 echo.
 echo   This test WRITES to the local database that the backend uses: it creates one new

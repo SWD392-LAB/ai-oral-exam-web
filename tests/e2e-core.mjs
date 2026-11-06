@@ -4,7 +4,9 @@
 //   phase 3  lecturer: review the attempt, save a draft, confirm the final score
 //   phase 4  student: read the confirmed report
 // Phase 0 = Feature 1 (material -> AI question drafts -> review).
-// Usage: node tests/e2e-core.mjs <0|1|2|3|4|all>   (all = new session, phases 1-4).  E2E_HEADED=1 shows the browser; E2E_SLOWMO=ms slows it.
+// Phase 5 = administrator users list (paging, search, filters, total).
+// Phase 6 = lecturer exam session lists (every session, not only the first page).
+// Usage: node tests/e2e-core.mjs <0|1|2|3|4|5|6|all>   (all = new session, phases 1-4).  E2E_HEADED=1 shows the browser; E2E_SLOWMO=ms slows it.
 // Needs: backend on :5080 with AiProviders__LlmProvider=Mock, and Vite on :5173 started with VITE_ANSWER_INPUT=text (typed answers).
 // State between phases, screenshots and the temp student CSV live in E2E_OUT (default: <temp>/aives-e2e).
 // Everything it creates is named "E2E-Core ..."; it deletes nothing. It writes to whatever database the backend uses.
@@ -365,12 +367,128 @@ async function phase4() {
   return page
 }
 
+// ---------------------------------------------------------------- phase 5 (Users: paging, search, filters, total)
+async function phase5() {
+  console.log('\nPHASE 5: administrator browses the users list (more users than one page)')
+  const page = await session('admin@aives.edu.vn')
+  const rows = page.locator('tr.a-row:visible')
+  const countText = async () => (await page.locator('p.a-num[aria-live=polite]').first().innerText()).replace(/\s+/g, ' ').trim()
+  const pagerText = async () => ((await page.locator('nav[aria-label="Pages of users"]').innerText().catch(() => '')) || '').replace(/\s+/g, ' ').trim()
+  const firstEmail = async () => (await rows.first().innerText()).match(/[\w.+-]+@[\w.-]+/)?.[0] ?? ''
+  const emailsOnPage = async () => (await rows.allInnerTexts()).map((t) => t.match(/[\w.+-]+@[\w.-]+/)?.[0] ?? '')
+  await page.goto(`${BASE}/admin/users`); await settle(page, 1500)
+
+  const N = Number(db('select count(*) from users'))
+  const pages = Math.ceil(N / 10)
+  const nPages = N > 10
+  if (!nPages) { bad('need more than 10 users in the database to test paging', `only ${N}`); return page }
+  const t1 = await countText()
+  if (t1.includes(`1–10 of ${N} users`)) ok('first page shows the real total from the database', t1); else bad('first page shows the real total from the database', `${t1} (database has ${N})`)
+  const r1 = await rows.count()
+  if (r1 === 10) ok('first page lists 10 accounts'); else bad('first page lists 10 accounts', String(r1))
+  const pg = await pagerText()
+  if (pg.includes(`Page 1 of ${pages}`)) ok('pager shows the page number and page count', pg); else bad('pager shows the page number and page count', pg || 'no pager')
+  const prevOff = await page.getByRole('button', { name: 'Previous' }).getAttribute('aria-disabled')
+  if (prevOff === 'true') ok('Previous is disabled on the first page'); else bad('Previous is disabled on the first page', String(prevOff))
+  await shot(page, '05-users-page1')
+  const emails1 = await emailsOnPage()
+
+  await page.getByRole('button', { name: 'Next' }).click(); await settle(page, 1200)
+  const t2 = await countText()
+  if (t2.includes(`11–20 of ${N} users`)) ok('Next opens accounts 11 to 20', t2); else bad('Next opens accounts 11 to 20', t2)
+  const emails2 = await emailsOnPage()
+  if (emails2.length > 0 && !emails2.some((e) => emails1.includes(e))) ok('second page lists different accounts than the first'); else bad('second page lists different accounts than the first', emails2.join(','))
+  await shot(page, '05-users-page2')
+  await page.getByRole('button', { name: 'Previous' }).click(); await settle(page, 1200)
+  if ((await firstEmail()) === emails1[0]) ok('Previous goes back to the first page'); else bad('Previous goes back to the first page')
+
+  // last page
+  for (let i = 1; i < pages; i++) { await page.getByRole('button', { name: 'Next' }).click(); await settle(page, 900) }
+  const lastRows = await rows.count()
+  const expectedLast = N - 10 * (pages - 1)
+  if (lastRows === expectedLast) ok(`last page lists the remaining ${expectedLast} accounts`); else bad('last page lists the remaining accounts', `${lastRows} instead of ${expectedLast}`)
+  const nextOff = await page.getByRole('button', { name: 'Next' }).getAttribute('aria-disabled')
+  if (nextOff === 'true') ok('Next is disabled on the last page'); else bad('Next is disabled on the last page', String(nextOff))
+  const lastEmails = await emailsOnPage()
+  const target = lastEmails[lastEmails.length - 1]
+  await shot(page, '05-users-last')
+
+  // search finds an account that is NOT on the first page
+  await page.fill('#f-search', target); await settle(page, 1500)
+  const ts = await countText()
+  const found = await emailsOnPage()
+  if (found.length === 1 && found[0] === target) ok('search finds an account that is not on the first page', `${target} -> ${ts}`); else bad('search finds an account that is not on the first page', `${target} -> ${found.join(',')} | ${ts}`)
+  if (/1 user matches/.test(ts)) ok('count text says 1 user matches'); else bad('count text says 1 user matches', ts)
+  await shot(page, '05-users-search')
+
+  // duplicate email on another page is refused with a clear message and creates nothing
+  await page.getByRole('button', { name: 'Clear filters' }).first().click(); await settle(page, 1200)
+  await page.getByRole('button', { name: /Create user/ }).first().click(); await page.locator('#new-email').waitFor({ timeout: 8000 })
+  await page.selectOption('#new-role', 'Administrator')
+  await page.fill('#new-email', target); await page.fill('#new-name', 'E2E Duplicate Probe')
+  await page.getByRole('button', { name: /Create and send setup link/ }).click(); await settle(page, 1800)
+  const errText = (await page.locator('#new-email-err').innerText().catch(() => '')).trim()
+  const N2 = Number(db('select count(*) from users'))
+  if (/already/i.test(errText) && N2 === N) ok('email of an account on another page is refused and nothing is created', errText); else bad('email of an account on another page is refused and nothing is created', `message "${errText}", users ${N} -> ${N2}`)
+  await shot(page, '05-users-duplicate')
+
+  // role and status filters count from the whole database, not from the loaded page
+  await page.reload(); await settle(page, 1500)
+  await page.selectOption('#f-role', 'Lecturer'); await settle(page, 1500)
+  const lect = Number(db("select count(*) from users u join roles r on r.id=u.role_id where r.name='Lecturer'"))
+  const tl = await countText()
+  if (tl.includes(String(lect))) ok('role filter counts all lecturers in the database', `${tl} (database ${lect})`); else bad('role filter counts all lecturers in the database', `${tl} (database ${lect})`)
+  await page.selectOption('#f-role', 'all'); await page.selectOption('#f-status', 'Deactivated'); await settle(page, 1500)
+  const off = Number(db('select count(*) from users where is_active = false'))
+  const td = await countText()
+  if (off === 0 ? /No users|0 users|match/.test(td) || (await rows.count()) === 0 : td.includes(String(off))) ok('status filter counts all deactivated accounts in the database', `${td} (database ${off})`); else bad('status filter counts all deactivated accounts in the database', `${td} (database ${off})`)
+
+  // the courses page still needs every lecturer, not just ten
+  await page.goto(`${BASE}/admin/courses`); await settle(page, 1800)
+  const bodyTxt = await page.locator('body').innerText()
+  if (!/something went wrong|could not load|error/i.test(bodyTxt)) ok('courses page still loads'); else bad('courses page still loads', bodyTxt.slice(0, 120))
+  await shot(page, '05-courses')
+  return page
+}
+
+// ---------------------------------------------------------------- phase 6 (exam sessions list: more than one page)
+async function phase6() {
+  console.log('\nPHASE 6: lecturer sees every exam session (more sessions than one page)')
+  const page = await session(LECTURER)
+  const lecId = db(`select id from users where email='${LECTURER}'`)
+  const mineSql = `from exam_sessions s join course_lecturers cl on cl.course_id=s.course_id where cl.lecturer_id='${lecId}'`
+  const mine = Number(db(`select count(*) ${mineSql}`))
+  // sessions that have started or finished: not a draft, and closed, past its end or inside its window
+  const started = Number(db(`select count(*) ${mineSql} and s.status<>'Draft' and (s.status='Closed' or s.end_time < now() or (s.start_time <= now() and now() <= s.end_time))`))
+  if (mine <= 10) { bad('need more than 10 exam sessions in the lecturer courses to test this', `only ${mine}`); return page }
+  const countText = async () => (await page.locator('p.a-num[aria-live=polite]').first().innerText()).replace(/\s+/g, ' ').trim()
+
+  await page.goto(`${BASE}/lecturer/sessions`); await settle(page, 2200)
+  const t1 = await countText()
+  if (t1 === `${mine} sessions`) ok('"Exam sessions" counts every session of the lecturer courses', `${t1} (database ${mine})`); else bad('"Exam sessions" counts every session of the lecturer courses', `${t1} (database ${mine})`)
+  await shot(page, '06-sessions')
+  // the oldest session is on a later page of the backend list; it must still be on the screen
+  const oldest = db(`select s.title ${mineSql} order by s.start_time asc limit 1`)
+  const shown = await page.getByText(oldest, { exact: true }).count()
+  if (shown > 0) ok('the oldest session is listed too', oldest); else bad('the oldest session is listed too', oldest)
+
+  await page.goto(`${BASE}/lecturer/results`); await settle(page, 2200)
+  const t2 = await countText()
+  if (t2 === `${started} sessions`) ok('"Results and review" counts every session that has started', `${t2} (database ${started})`); else bad('"Results and review" counts every session that has started', `${t2} (database ${started})`)
+
+  await page.goto(`${BASE}/lecturer/statistics`); await settle(page, 2200)
+  const opts = await page.locator('#f-session option').count()
+  if (opts === started) ok('"Class statistics" offers every session that has started', `${opts} options (database ${started})`); else bad('"Class statistics" offers every session that has started', `${opts} options (database ${started})`)
+  await shot(page, '06-statistics')
+  return page
+}
+
 const phase = process.argv[2] || 'all'
 if (phase === 'all') for (const k of Object.keys(state)) delete state[k]   // a full run always starts with a new session
-const todo = phase === 'all' ? ['0', '1', '2', '3', '4'] : [phase]
+const todo = phase === 'all' ? ['0', '1', '2', '3', '4', '5', '6'] : [phase]
 for (const p of todo) {
   try {
-    const page = await ({ 0: phase0, 1: phase1, 2: phase2, 3: phase3, 4: phase4 }[p])()
+    const page = await ({ 0: phase0, 1: phase1, 2: phase2, 3: phase3, 4: phase4, 5: phase5, 6: phase6 }[p])()
     if (page?.errors?.length) { console.log('  backend/page errors seen:'); [...new Set(page.errors)].slice(0, 8).forEach((e) => console.log('    ' + e)) }
   } catch (e) { bad(`phase ${p} crashed`, String(e.message).split('\n')[0]) }
 }
