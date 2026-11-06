@@ -1,0 +1,26 @@
+/* AccountSettings only (from the wireframe helmet), scoped to .pg-accountsettings */
+
+/* Lecturers and administrators: the same page in Moonlight. The night tokens are re-pointed to
+   their Moonlight roles inside the page, so ivory text becomes ink and the ivory button an ink one. */
+.pg-accountsettings.as-moon {
+  --ivory: #0F1630;
+  --ivory-2: #3D4566;
+  --ivory-3: #596180;
+  --ivory-dim: #596180;
+  --night-indigo: #F6F1E7;
+  --night-edge: #7F88A6;
+  --night-line: #DCE0EC;
+  --night-field: #FFFFFF;
+  --ivory-hover: #1E2A57;
+  --lantern-gold: #7A5300;
+  --ember-text: #B3301A;
+  --jade: #2C6B6B;
+  --red-wash-night: rgba(232,69,44,0.07);
+  color: #0F1630;
+}
+
+/* The top bar keeps its Moonlight ink: inside the page the night tokens are swapped, which would turn the
+   wordmark, current tab and Sign out cream on the light bar. */
+.pg-accountsettings.as-moon .a-top {
+  --night-indigo: #0F1630;
+}

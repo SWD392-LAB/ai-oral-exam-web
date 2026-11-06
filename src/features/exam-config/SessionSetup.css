@@ -1,0 +1,120 @@
+/* SessionSetup only (from the wireframe helmet), scoped to .pg-sessionsetup */
+.pg-sessionsetup .ss-open {animation:aives-unfold .45s cubic-bezier(0.16,1,0.3,1) backwards}
+.pg-sessionsetup .ss-close {animation:ss-close .26s cubic-bezier(0.25,1,0.5,1) both}
+.pg-sessionsetup .ss-nudge-a {animation:ss-nudge-a .42s cubic-bezier(0.34,1.32,0.64,1)}
+.pg-sessionsetup .ss-nudge-b {animation:ss-nudge-b .42s cubic-bezier(0.34,1.32,0.64,1)}
+.pg-sessionsetup .ss-step:hover .ss-node {border-color:var(--night-indigo) !important;color:var(--night-indigo) !important}
+.pg-sessionsetup .ss-step:hover .ss-step-label {color:var(--night-indigo) !important}
+.pg-sessionsetup .ss-file:focus-within {outline:2px solid var(--night-indigo);outline-offset:3px}
+.pg-sessionsetup .ss-file:hover {background:var(--field-white) !important;border-color:var(--night-indigo) !important}
+.pg-sessionsetup .ss-linkbtn {cursor:pointer}
+
+/* Platform Rubric modal and badge styles (Moonlight theme) */
+.pg-sessionsetup .ss-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(15, 22, 48, 0.45);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: aives-fade .2s ease-out;
+}
+.pg-sessionsetup .ss-modal-card {
+  width: 100%;
+  max-width: 640px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: var(--paper, #fff);
+  border: 1px solid var(--edge);
+  border-radius: 20px;
+  padding: 32px 32px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  box-shadow: 0 24px 64px -16px rgba(15, 22, 48, 0.25);
+  animation: aives-pop .25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.pg-sessionsetup .ss-rubric-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  border-radius: 14px;
+  border: 1px solid var(--jade-edge, rgba(14, 159, 110, 0.3));
+  background: var(--jade-wash, rgba(14, 159, 110, 0.06));
+}
+.pg-sessionsetup .ss-criterion-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line, #e2e8f0);
+}
+.pg-sessionsetup .ss-criterion-item:last-child {
+  border-bottom: 0;
+}
+
+/* Question Bank Attach Modal styles */
+.pg-sessionsetup .ss-bank-modal {
+  max-width: 760px;
+}
+.pg-sessionsetup .ss-bank-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--field-white);
+  transition: all 0.15s ease;
+}
+.pg-sessionsetup .ss-bank-item:hover:not(.ss-bank-disabled) {
+  border-color: var(--edge);
+  background: rgba(244, 246, 252, 0.5);
+}
+.pg-sessionsetup .ss-bank-item.ss-bank-selected {
+  border-color: var(--night-indigo);
+  background: rgba(15, 22, 48, 0.02);
+}
+.pg-sessionsetup .ss-bank-item.ss-bank-disabled {
+  opacity: 0.6;
+  background: rgba(244, 246, 252, 0.6);
+  cursor: not-allowed;
+}
+.pg-sessionsetup .ss-bank-checkbox {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  cursor: pointer;
+  accent-color: var(--night-indigo);
+}
+.pg-sessionsetup .ss-bank-bloom {
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  background: rgba(61, 69, 102, 0.08);
+  color: var(--ink-2);
+}
+
+@keyframes ss-close{from{opacity:1;clip-path:inset(0 0 0 0)}to{opacity:0;clip-path:inset(0 0 100% 0)}}
+@keyframes ss-nudge-a{0%{transform:none}30%{transform:translateX(-4px)}60%{transform:translateX(3px)}100%{transform:none}}
+@keyframes ss-nudge-b{0%{transform:none}30%{transform:translateX(-4px)}60%{transform:translateX(3px)}100%{transform:none}}
+@media (max-width: 760px) {
+  .pg-sessionsetup .ss-grid {row-gap:56px !important}
+  .pg-sessionsetup .ss-grid>* {grid-column:auto !important;grid-row:auto !important}
+  .pg-sessionsetup .ss-aside {position:static !important;order:1}
+  .pg-sessionsetup .ss-foot {order:2}
+  .pg-sessionsetup .ss-quote {font-size:22px !important}
+}
+@media (prefers-reduced-motion: reduce) {
+  .pg-sessionsetup .ss-open {animation:aives-fade .16s linear backwards !important}
+  .pg-sessionsetup .ss-close {animation:aives-fade-out .16s linear both !important}
+  .pg-sessionsetup .ss-nudge-a,
+.pg-sessionsetup .ss-nudge-b {animation:none !important}
+}

@@ -1,0 +1,5 @@
+Compare microservices architecture with a modular monolith. When would you choose which?
+Explain the Dependency Inversion Principle (DIP) in SOLID and give an example in software design.
+What are the benefits and drawbacks of using an asynchronous message queue in a web application?
+Explain how the ASP.NET Core middleware pipeline works and what happens when you short-circuit it.
+Compare Transient, Scoped, and Singleton service lifetimes in dependency injection. What bug can occur if a Scoped service is injected into a Singleton?

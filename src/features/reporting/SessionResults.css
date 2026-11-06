@@ -1,0 +1,32 @@
+/* SessionResults only (from the wireframe helmet), scoped to .pg-sessionresults */
+.pg-sessionresults .sr-in-a {animation:sr-in-a .4s cubic-bezier(0.34,1.32,0.64,1) both}
+.pg-sessionresults .sr-in-b {animation:sr-in-b .4s cubic-bezier(0.34,1.32,0.64,1) both}
+.pg-sessionresults .sr-open {animation:sr-open .55s cubic-bezier(0.16,1,0.3,1) backwards}
+.pg-sessionresults .sr-close {animation:sr-close .26s cubic-bezier(0.25,1,0.5,1) both}
+.pg-sessionresults .sr-bar {transform-origin:left center;transition:transform .4s cubic-bezier(0.25,1,0.5,1)}
+.pg-sessionresults .sr-dim {transition:opacity .4s ease-out}
+.pg-sessionresults .sr-legend {transition:background-color .18s ease-out,box-shadow .18s ease-out,color .18s ease-out}
+.pg-sessionresults .sr-legend:hover {background:rgba(15,22,48,0.05) !important}
+.pg-sessionresults .sr-legend[aria-pressed="true"] {background:var(--field-white) !important;box-shadow:inset 0 0 0 1px var(--night-indigo) !important}
+@keyframes sr-in-a{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes sr-in-b{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes sr-open{from{opacity:0;transform:translateY(-10px);clip-path:inset(0 0 100% 0 round 20px)}to{opacity:1;transform:none;clip-path:inset(0 0 0 0 round 20px)}}
+@keyframes sr-close{from{opacity:1;transform:none}to{opacity:0;transform:translateY(-8px)}}
+.pg-sessionresults .sr-tbl {min-width:920px}
+.pg-sessionresults .sr-c1 {min-width:240px}
+.pg-sessionresults .sr-sm-only {display:none}
+@media (max-width: 760px) {
+  .pg-sessionresults .sr-tbl {min-width:0 !important}
+  .pg-sessionresults .sr-c1 {min-width:0 !important}
+  .pg-sessionresults .sr-sm-only {display:block !important}
+  .pg-sessionresults .sr-num {padding-right:16px !important;width:auto !important}
+  .pg-sessionresults .sr-actions {width:100%}
+  .pg-sessionresults .sr-actions > * {flex:1 1 auto}
+}
+@media (prefers-reduced-motion: reduce) {
+  .pg-sessionresults .sr-in-a,
+.pg-sessionresults .sr-in-b,
+.pg-sessionresults .sr-open {animation:aives-fade .16s linear both !important}
+  .pg-sessionresults .sr-close {animation:aives-fade-out .16s linear both !important}
+  .pg-sessionresults .sr-bar {transition:none !important}
+}
