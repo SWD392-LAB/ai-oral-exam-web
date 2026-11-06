@@ -3,6 +3,7 @@ title AIVES - E2E core flow (lecturer sets up an exam, student takes it, lecture
 
 echo ===============================================================================
 echo            AIVES - E2E CORE FLOW  (a browser window opens and you can watch it)
+echo     Phase 0 Lecturer: course material upload + AI question drafts with platform rubric + review
 echo     Phase 1 Lecturer: exam session + questions from the bank + students + publish
 echo     Phase 2 Student : lobby + microphone check + interview + submit
 echo     Phase 3 Lecturer: review, save draft score, confirm final score
@@ -10,7 +11,8 @@ echo     Phase 4 Student : read the confirmed report
 echo ===============================================================================
 echo.
 echo   This test WRITES to the local database that the backend uses: it creates one new
-echo   exam session named "E2E-Core ..." and one attempt for han.hg@aives.edu.vn. It deletes nothing.
+echo   exam session named "E2E-Core ..." and one attempt for han.hg@aives.edu.vn. It also
+echo   uploads one small text material and creates 2 AI question drafts. It deletes nothing.
 echo.
 
 :: 1. Docker containers
