@@ -1,9 +1,12 @@
 // Makes sure the demo exam "English AI viva demo" exists. It only CREATES it when no open (Published, not yet
-// ended) session with that title exists; when one exists it changes nothing.
+// ended) session with that title and the demo student exists; when one exists it changes nothing.
+// With --fresh it is a RESET that needs no database access: every open demo session is closed through the API
+// and a new one is created, so the student starts again with nothing taken. (The app has no way to delete an
+// attempt, and a published session cannot be edited, so a new session is the way to start again.)
 //   - signs in as the demo lecturer through the real sign-in page, then uses the app's own API and screens;
 //   - adds two simple everyday-topic questions to the question bank (skips them if they already exist), approves them;
 //   - creates the session, attaches those two questions, imports the demo student, publishes.
-// Usage: node tests/demo-exam.mjs        Needs: backend on :5080, Vite on :5173, Keycloak on :8080 and E2E_PASSWORD
+// Usage: node tests/demo-exam.mjs [--fresh]        Needs: backend on :5080, Vite on :5173, Keycloak on :8080 and E2E_PASSWORD
 //        (the password of the seeded local test users; never written in a file).
 // It writes to whatever database the backend uses. It deletes nothing.
 import { chromium } from 'playwright'
@@ -71,6 +74,14 @@ const registered = async (id) => {
   return (Array.isArray(ps) ? ps : ps.items ?? []).some((p) => String(p.email ?? '').toLowerCase() === STUDENT)
 }
 const open = sessions.filter((s) => String(s.title ?? '').startsWith(TITLE) && s.status === 'Published' && new Date(s.endTime) > new Date())
+if (process.argv.includes('--fresh')) {
+  for (const s of open) {
+    const r = await call('POST', `${API}/api/exam-sessions/${s.id}/close`)
+    if (r.status >= 300) await fail(`could not close the old demo session ${s.id} -> ${r.status} ${r.text.slice(0, 120)}`)
+  }
+  console.log(`Closed ${open.length} old open "${TITLE}" session(s).`)
+  open.length = 0
+}
 let existing = null
 for (const s of open) if (await registered(s.id)) { existing = s; break }   // a session without the student is no use for the demo
 if (existing) {
