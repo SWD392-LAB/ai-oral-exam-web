@@ -78,13 +78,27 @@ set SQL=%TEMP%\aives-reset-demo.sql
 >> "%SQL%" echo select s.title, s.status as session, s.end_time, p.status as student, (select count(*) from interview_attempts a where a.participant_id=p.id) as attempts from exam_sessions s join participants p on p.exam_session_id=s.id where s.title like 'English AI viva demo%%' and s.status='Published';
 >> "%SQL%" echo commit;
 docker exec -i %AIVES_PG% psql -U aives -d aives -v ON_ERROR_STOP=1 < "%SQL%"
-if errorlevel 1 (
-    echo.
-    echo [ERROR] The reset failed. Nothing was changed.
-) else (
-    echo.
-    echo Done. The student han.hg can take the exam again: reload "My exams" in the browser.
-)
+if errorlevel 1 goto reset_failed
+
+rem the demo exam with its student must be in THIS database, otherwise the reset touched nothing
+set FOUND=
+for /f "usebackq delims=" %%n in (`docker exec %AIVES_PG% psql -U aives -d aives -At -c "select s.id from exam_sessions s join participants p on p.exam_session_id=s.id where s.title like 'English AI viva demo%%' and s.status='Published' limit 1"`) do set FOUND=%%n
+if not defined FOUND goto reset_nothing
+echo.
+echo Done. The student han.hg can take the exam again: reload "My exams" in the browser.
+goto reset_end
+
+:reset_failed
+echo.
+echo [ERROR] The reset failed. Nothing was changed.
+goto reset_end
+
+:reset_nothing
+echo.
+echo [WARNING] Nothing was reset: container %AIVES_PG% has no open "English AI viva demo" exam with a student.
+echo           The backend may use a different database than this container. Check its connection string.
+
+:reset_end
 del "%SQL%" > nul 2>&1
 echo.
 pause

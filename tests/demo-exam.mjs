@@ -66,12 +66,20 @@ async function allPages(pathname) {
 
 // 1. already there? then change nothing
 const sessions = await allPages('/api/exam-sessions')
-const existing = sessions.find((s) => String(s.title ?? '').startsWith(TITLE) && s.status === 'Published' && new Date(s.endTime) > new Date())
+const registered = async (id) => {
+  const ps = json(await call('GET', `${API}/api/exam-sessions/${id}/participants`)) ?? []
+  return (Array.isArray(ps) ? ps : ps.items ?? []).some((p) => String(p.email ?? '').toLowerCase() === STUDENT)
+}
+const open = sessions.filter((s) => String(s.title ?? '').startsWith(TITLE) && s.status === 'Published' && new Date(s.endTime) > new Date())
+let existing = null
+for (const s of open) if (await registered(s.id)) { existing = s; break }   // a session without the student is no use for the demo
 if (existing) {
-  console.log(`SKIP: "${existing.title}" already exists and is open until ${existing.endTime} (id ${existing.id}). Nothing was created.`)
+  console.log(`SKIP: "${existing.title}" already exists, is open until ${existing.endTime} and has ${STUDENT} registered (id ${existing.id}). Nothing was created.`)
   await browser.close(); process.exit(0)
 }
-console.log(`No open "${TITLE}" session found: creating it.`)
+console.log(open.length
+  ? `Found ${open.length} open "${TITLE}" session(s), but none has ${STUDENT} registered (a published session cannot get new students): creating a new one.`
+  : `No open "${TITLE}" session found: creating it.`)
 
 // 2. the two questions in the bank, approved
 for (const q of QUESTIONS) {
@@ -133,5 +141,6 @@ await page.getByRole('button', { name: 'Publish', exact: true }).click(); await 
 // 4. check what the backend now says
 const made = json(await call('GET', `${API}/api/exam-sessions/${sessionId}`))
 if (!made || made.status !== 'Published') await fail(`session ${sessionId} was not published (status: ${made?.status ?? 'unknown'})`)
+if (!(await registered(sessionId))) await fail(`session ${sessionId} was published but ${STUDENT} is not registered in it (the student import did not work)`)
 console.log(`CREATED: "${made.title}" (id ${sessionId}), open until ${made.endTime}, student ${STUDENT}.`)
 await browser.close()
