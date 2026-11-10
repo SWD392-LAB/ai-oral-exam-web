@@ -336,17 +336,6 @@ export default function StudentHomePage() {
                             <p style={{ marginTop: '2px', fontSize: '14px', color: 'var(--ivory-2)' }}>{formatDay(a.endedAt, now)}</p>
                           </div>
                         </li>
-                        <li style={{ display: 'grid', gridTemplateColumns: '26px minmax(0, 1fr)', columnGap: '14px', paddingBottom: '28px', position: 'relative' }}>
-                          <span aria-hidden="true" style={{ position: 'absolute', left: '12.5px', top: '30px', bottom: '4px', width: '1px', background: 'rgba(246,241,231,0.22)' }} />
-                          <svg width="20" height="20" viewBox="0 0 16 16" aria-hidden="true" style={{ margin: '2px 0 0 3px' }}>
-                            <circle cx="8" cy="8" r="6.25" style={{ fill: 'none', stroke: 'var(--lantern-gold)', strokeWidth: '1.5' }} />
-                            <path d="M8 1.75a6.25 6.25 0 0 1 0 12.5a2.6 6.25 0 0 0 0-12.5z" style={{ fill: 'var(--lantern-gold)' }} />
-                          </svg>
-                          <div>
-                            <p style={{ fontSize: '16px', fontWeight: '500' }}>The AI suggested a score for each question</p>
-                            <p style={{ marginTop: '2px', fontSize: '14px', color: 'var(--ivory-2)' }}>Suggestions only. You see them with your report.</p>
-                          </div>
-                        </li>
                         <li aria-current="step" style={{ display: 'grid', gridTemplateColumns: '26px minmax(0, 1fr)', columnGap: '14px' }}>
                           <svg width="20" height="20" viewBox="0 0 16 16" aria-hidden="true" style={{ margin: '2px 0 0 3px' }}>
                             <circle cx="8" cy="8" r="6.25" style={{ fill: 'none', stroke: 'var(--ivory-2)', strokeWidth: '1.5' }} />

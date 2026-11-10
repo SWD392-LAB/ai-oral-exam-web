@@ -172,19 +172,6 @@ export default function AttemptDonePage() {
                 <li style={{ position: "relative", display: "grid", gridTemplateColumns: "20px minmax(0, 1fr)", columnGap: "16px", paddingBottom: "26px" }}>
                   <span aria-hidden="true" style={{ position: "absolute", left: "9.5px", top: "26px", bottom: "4px", width: "1px", background: "rgba(246,241,231,0.22)" }} />
                   <svg width="20" height="20" viewBox="0 0 16 16" aria-hidden="true" style={{ marginTop: "1px" }}>
-                    <circle cx="8" cy="8" r="6.25" style={{ fill: "none", stroke: "var(--lantern-gold)", strokeWidth: "1.5" }} />
-                    <path d="M8 1.75a6.25 6.25 0 0 1 0 12.5a2.6 6.25 0 0 0 0-12.5z" style={{ fill: "var(--lantern-gold)" }} />
-                  </svg>
-                  <p style={{ fontSize: "16px", fontWeight: "400", lineHeight: "1.4" }}>
-                    AIVES suggests a score for each question
-                  </p>
-                  <p style={{ gridColumn: "2", marginTop: "4px", fontSize: "14.5px", lineHeight: "1.5", color: "var(--lantern-gold)" }}>
-                    A suggestion only, not your grade.
-                  </p>
-                </li>
-                <li style={{ position: "relative", display: "grid", gridTemplateColumns: "20px minmax(0, 1fr)", columnGap: "16px", paddingBottom: "26px" }}>
-                  <span aria-hidden="true" style={{ position: "absolute", left: "9.5px", top: "26px", bottom: "4px", width: "1px", background: "rgba(246,241,231,0.22)" }} />
-                  <svg width="20" height="20" viewBox="0 0 16 16" aria-hidden="true" style={{ marginTop: "1px" }}>
                     <circle cx="8" cy="8" r="6.25" style={{ fill: "none", stroke: "var(--ivory-2)", strokeWidth: "1.5" }} />
                   </svg>
                   <p style={{ fontSize: "16px", fontWeight: "400", lineHeight: "1.4" }}>
