@@ -199,19 +199,6 @@ export default function StudentReportPage() {
                 </p>
                 </>
                 )}
-                <p style={{ marginTop: "24px", display: "flex", alignItems: "flex-start", gap: "10px", maxWidth: "40em", fontSize: "15px", lineHeight: "1.5", color: "var(--ivory-2)" }}>
-                  <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" style={{ flex: "none", marginTop: "4px" }}>
-                    <circle cx="8" cy="8" r="6.25" style={{ fill: "none", stroke: "var(--lantern-gold)", strokeWidth: "1.5" }} />
-                    <path d="M8 1.75a6.25 6.25 0 0 1 0 12.5a2.6 6.25 0 0 0 0-12.5z" style={{ fill: "var(--lantern-gold)" }} />
-                  </svg>
-                  <span>
-                    The AI's suggestions below add up to{' '}
-                    <span style={{ color: "var(--lantern-gold)", fontWeight: "500" }}>
-                      {v.aiTotal}
-                    </span>
-                    . Your lecturer decides the final score.
-                  </span>
-                </p>
               </div>
             </section>
             <section aria-labelledby="qs-h" className="a-rise" style={{ marginTop: "88px", animationDelay: "120ms" }}>
@@ -234,9 +221,6 @@ export default function StudentReportPage() {
                         <span style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                           <span style={{ fontSize: "15px", fontWeight: n.weight, color: n.ink, whiteSpace: "nowrap" }}>
                             Question{' '}{n.num}
-                          </span>
-                          <span className="a-num" style={{ fontSize: "13.5px", color: "var(--lantern-gold)", whiteSpace: "nowrap" }}>
-                            AI{' '}{n.ai}{' '}/ {n.max}
                           </span>
                         </span>
                       </button>
@@ -348,37 +332,7 @@ export default function StudentReportPage() {
                             ))}
                           </ol>
                         </div>
-                        <aside aria-label={`AI suggestion for question ${f.num}`} style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
-                          <div style={{ display: "flex", flexDirection: "column", gap: "16px", padding: "24px 24px 22px", borderRadius: "16px", border: "1.5px dashed var(--lantern-gold)", background: "var(--ai-wash)" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                              <svg width="20" height="20" viewBox="0 0 16 16" aria-hidden="true" style={{ flex: "none" }}>
-                                <circle cx="8" cy="8" r="6.25" style={{ fill: "none", stroke: "var(--lantern-gold)", strokeWidth: "1.5" }} />
-                                <path d="M8 1.75a6.25 6.25 0 0 1 0 12.5a2.6 6.25 0 0 0 0-12.5z" style={{ fill: "var(--lantern-gold)" }} />
-                              </svg>
-                              <span style={{ fontSize: "15px", fontWeight: "500", color: "var(--lantern-gold)" }}>
-                                AI suggests
-                              </span>
-                              <span style={{ marginLeft: "auto", fontSize: "13px", color: "var(--lantern-gold)" }}>
-                                provisional
-                              </span>
-                            </div>
-                            <p className="a-num" style={{ display: "flex", alignItems: "baseline", gap: "8px", color: "var(--lantern-gold)" }}>
-                              <span style={{ fontSize: "56px", fontWeight: "200", lineHeight: "1", letterSpacing: "-0.02em" }}>
-                                {f.ai}
-                              </span>
-                              <span style={{ fontSize: "18px", fontWeight: "300" }}>
-                                / {f.max}
-                              </span>
-                            </p>
-                            <div style={{ paddingTop: "16px", borderTop: "1px dashed rgba(245,183,0,0.4)" }}>
-                              <p style={{ fontSize: "14px", fontWeight: "500", color: "var(--lantern-gold)" }}>
-                                AI comment · read only
-                              </p>
-                              <p style={{ marginTop: "8px", fontSize: "15px", lineHeight: "1.55", color: "var(--ivory)" }}>
-                                {f.comment}
-                              </p>
-                            </div>
-                          </div>
+                        <aside aria-label={`Question ${f.num} navigation`} style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
                           <div style={{ display: "flex", gap: "10px" }}>
                             <button type="button" className="a-btn a-btn-secondary" onClick={f.prev} aria-disabled={f.prevOff} style={{ flex: "1", height: "44px", padding: "0 14px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px", borderRadius: "12px", border: "1px solid var(--night-edge)", background: "transparent", fontSize: "15px", fontWeight: "500" }}>
                               <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style={{ fill: "none", stroke: "currentColor", strokeWidth: "1.75", strokeLinecap: "round", strokeLinejoin: "round" }}>
@@ -414,7 +368,7 @@ export default function StudentReportPage() {
                   Waiting for your lecturer
                 </h2>
                 <p style={{ gridColumn: "2", maxWidth: "36em", fontSize: "16.5px", lineHeight: "1.5", color: "var(--ivory-2)" }}>
-                  Your lecturer has not confirmed your score yet. Your report, with the AI's comment on every question and the full dialogue, opens here once they do.
+                  Your lecturer has not confirmed your score yet. Your report, with the full dialogue, opens here once they do.
                 </p>
               </div>
               <ol aria-label="What happens to your attempt" className="a-rise" style={{ marginTop: "48px", display: "flex", flexDirection: "column", animationDelay: "120ms" }}>
@@ -429,21 +383,6 @@ export default function StudentReportPage() {
                     </p>
                     <p style={{ marginTop: "2px", fontSize: "14px", color: "var(--ivory-2)" }}>
                       {v.submittedOn}
-                    </p>
-                  </div>
-                </li>
-                <li style={{ display: "grid", gridTemplateColumns: "26px minmax(0, 1fr)", columnGap: "14px", paddingBottom: "28px", position: "relative" }}>
-                  <span aria-hidden="true" style={{ position: "absolute", left: "12.5px", top: "30px", bottom: "4px", width: "1px", background: "rgba(246,241,231,0.22)" }} />
-                  <svg width="20" height="20" viewBox="0 0 16 16" aria-hidden="true" style={{ margin: "2px 0 0 3px" }}>
-                    <circle cx="8" cy="8" r="6.25" style={{ fill: "none", stroke: "var(--lantern-gold)", strokeWidth: "1.5" }} />
-                    <path d="M8 1.75a6.25 6.25 0 0 1 0 12.5a2.6 6.25 0 0 0 0-12.5z" style={{ fill: "var(--lantern-gold)" }} />
-                  </svg>
-                  <div>
-                    <p style={{ fontSize: "16px", fontWeight: "500" }}>
-                      The AI suggested a score for each question
-                    </p>
-                    <p style={{ marginTop: "2px", fontSize: "14px", color: "var(--ivory-2)" }}>
-                      Suggestions only. You see them with your report.
                     </p>
                   </div>
                 </li>
